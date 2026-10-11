@@ -1,0 +1,58 @@
+# 週會紀錄工作台
+
+本機處理的繁體中文網頁，整理跨週議題與 Word 會議紀錄。畫面只有虛構範例；實際附件與會議內容未納入原始碼。
+
+## 啟動
+
+Node.js 22 或 24（本環境驗證 24.19.0）。
+
+```sh
+cd /workspace/siemensintern
+npm ci --cache /workspace/.npm-cache
+npm run dev -- --port 5173
+```
+
+伺服器只綁定本機介面，不直接對外開放。瀏覽器於同一部電腦開啟本機 5173 連接埠。雲端環境若沒有瀏覽器轉送功能，可將程式放到公司核准的電腦執行；不要為此直接公開公司資料。`npm run build` 產生 `dist/`，可由公司核准的靜態伺服器提供。未部署到公開網站。
+
+## 使用流程
+
+1. 先試用示範資料，選「開始我的紀錄」建立空白工作區，指定最早一場會議日期。
+2. 匯入 `.docx`。支援 Topic / Description / Note / PiC（舊版沒有 PiC 也可），跳過空白列。無議題名稱的非空白列保留並提示補填；不要假定此列與前列是同一議題。
+3. 匯入預覽確認跨週連結。相同名稱僅提供建議，不同名稱可手動連結。每場會議同一議題只能有一列，避免覆蓋既有紀錄。
+4. 開會前建立下次會議，預設帶入進行中、待協調議題並清空本次描述與備註。已關閉議題只留在歷史。若要匯入已完成的下一場 Word 紀錄，取消「帶入未關閉議題」，再匯入並連結前次議題。新會議日期需晚於最新會議。
+5. 編輯本次紀錄，左側對照最近一次有紀錄的會議（不一定是前一週），「完整歷程」查看全部。
+6. 簡報參考支援 `.pptx` 文字，依頁切換。不重建圖表、圖片、版面，也不自動推定簡報議題與 Word 議題的關係。簡報參考不放入備份。
+7. 定期下載加密備份；下次使用「開啟備份」。Word 匯出使用五欄表格，但不保留原始範本的頁首、Logo 或完整版面。
+
+## 資料保護與限制
+
+- 檔案解析在瀏覽器執行，不呼叫外部 AI、追蹤、CDN、外部字型或 API。依賴打包到網站，非執行時遠端載入。
+- 紀錄只在記憶體，無 localStorage / IndexedDB 自動存檔。關閉或重整會失去資料；未下載備份時嘗試提醒離開，但瀏覽器可能不顯示提醒。仍應定期主動備份。
+- 加密備份：AES-256-GCM、隨機 16-byte salt / 12-byte IV、PBKDF2-SHA-256 310,000 次。密碼至少 12 字元、不保留、無重設功能。加密保護下載檔案，不保護已解密畫面、裝置記憶體、瀏覽器擴充功能或遭入侵裝置。
+- Word 匯出未加密，應依公司分類、存取權限及保存政策處理。清除分頁不會刪除下載檔案、原始文件或此雲端對話的附件。使用者已上傳此對話的附件並不因本機網頁模式而變成只存在公司電腦。
+- 上傳支援 .docx / .pptx，不支援舊 .doc / .ppt；單檔 25 MB，受限的解壓縮 XML 大小。不要處理不可信來源的 Office 文件。
+- 正式多人上線前需公司資訊安全核准、公司 SSO / RBAC、HTTPS、伺服器驗證與存取控制、操作稽核、加密儲存、備份與保留政策。此版本沒有多人協作、登入、伺服器資料庫或權限控管，不是可直接公開的企業系統。
+- 建議在公司管理裝置、核准瀏覽器與私有網路使用；部署時設定 HTTP CSP（含 `frame-ancestors 'none'`）、HSTS、`X-Content-Type-Options: nosniff`、`Referrer-Policy: no-referrer`、敏感入口 `Cache-Control: no-store`。HTML CSP 僅提供基礎防護，不能取代伺服器安全措施。
+
+## 驗證
+
+```sh
+npm test
+npm run build
+# 先啟動 dev，需已安裝 Chromium；CHROMIUM_PATH 可指定執行檔
+npm run test:browser
+```
+
+瀏覽器 smoke test 驗證跨週帶入、關閉排除、編輯、備份還原、錯誤密碼、DOCX 匯出再匯入、手機版面，以及無外部網路請求。選用 `ATTACHMENTS_DIR` 可用本機附件驗證解析，測試不會將附件寫入 repo 或輸出其內容。
+
+## 後續：對方紀錄比對（尚未實作）
+
+預計以來源、格式對應、穩定議題 ID 與人工確認連結建立兩份紀錄的差異視圖；分開呈現雙方原文，經確認後才合併。應加入來源追溯、決議差異、負責人與日期衝突提示，避免以列號或名稱相似度自動合併。目前 `issueId` 是跨週身份，`meeting.id` 是每場會議身份，可在此基礎擴充。
+
+## GitHub Pages 發布
+
+保留儲存庫 `effylee1909/siemensintern`，網站路徑命名為 `siemens_weekilymeeting`（依指定拼字）。預定網址為 `https://effylee1909.github.io/siemensintern/siemens_weekilymeeting/`。
+
+在儲存庫 Settings → Pages → Build and deployment，將 Source 設為 GitHub Actions。`.github/workflows/pages.yml` 在推送 main 時測試、建置並發布網站。設定完成後可在 Actions 手動執行 Deploy weekly meeting website，或推送新提交觸發。帳戶方案及儲存庫可見性可能限制 Pages 是否可用，私人原始碼儲存庫不代表 Pages 網站也私有。
+
+`npm run build:pages` 使用專屬 base path，輸出至 `dist/siemens_weekilymeeting/`；整個 `dist/` 作為 Pages artifact，因此需保留完整子路徑。發布的檔案只有程式與虛構範例，不包含本機匯入資料、上傳附件或加密備份。GitHub Pages 是網頁託管，沒有公司登入與權限驗證；若公司政策不允許公開平台上的工具處理內部紀錄，請使用公司核准的內網部署。
