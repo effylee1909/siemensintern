@@ -6,6 +6,8 @@ import {
 } from "./agenda.js";
 import {
   demo,
+  addMeeting,
+  sortMeetings,
   uid,
   nextMeeting,
   previousEntry,
@@ -78,6 +80,9 @@ function toast(t) {
   setTimeout(() => $("#toast").classList.remove("visible"), 4500);
 }
 function render() {
+  const oldNav = $(".sidebar nav"),
+    navScroll = oldNav?.scrollTop || 0,
+    navLeft = oldNav?.scrollLeft || 0;
   const m = current();
   const attachments = m.presentations || [];
   if (!attachments.some((p) => p.id === presentationId))
@@ -98,7 +103,7 @@ function render() {
   const previous = e && previousEntry(state, m.id, e.issueId);
   const index = state.meetings.findIndex((x) => x.id === m.id);
   $("#app").innerHTML =
-    `<aside class="sidebar"><a class="brand" href="#"><span class="brand-icon">週</span><span>週會工作台<small>MEETING DESK</small></span></a><div class="workspace-label">個人工作空間 <span class="dot"></span></div><div class="nav-title">會議紀錄 <span>${state.meetings.length}</span></div><nav>${[
+    `<aside class="sidebar"><a class="brand" href="#"><span class="brand-icon">週</span><span>週會工作台<small>MEETING DESK</small></span></a><div class="workspace-label">個人工作空間 <span class="dot"></span></div><div class="nav-title">會議紀錄 <span>${state.meetings.length}</span></div><nav aria-label="會議列表 / Meeting list" tabindex="0">${[
       ...state.meetings,
     ]
       .reverse()
@@ -108,7 +113,7 @@ function render() {
       )
       .join(
         "",
-      )}</nav><button class="new-meeting secondary">＋ 建立下次會議</button><div class="sidebar-bottom"><div class="local-label"><span class="dot"></span> 本機處理模式</div><p>檔案在瀏覽器中解析。<br>不呼叫雲端 AI 或外部服務。</p><button id="privacy" class="text-button">資料保護與使用說明 ↗</button></div></aside>
+      )}</nav><div class="meeting-actions"><button class="new-meeting secondary">＋ 建立下次會議</button><button id="add-history" class="secondary">＋ 新增歷史／其他會議</button><button id="import-history" class="text-button">↑ 批次上傳歷次 PPT</button></div><div class="sidebar-bottom"><div class="local-label"><span class="dot"></span> 本機處理模式</div><p>檔案在瀏覽器中解析。<br>不呼叫雲端 AI 或外部服務。</p><button id="privacy" class="text-button">資料保護與使用說明 ↗</button></div></aside>
 <main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${dirty ? "尚未下載備份 · 僅在此分頁" : "資料僅在此分頁"}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 加密備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title || "尚未設定會議 / Meeting not set")} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>本機暫存模式</strong> · 重新整理或關閉前，請下載加密備份。"}<small>Word 匯出為未加密文件，請只存放於公司核准的位置。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button>${!dirty && !isDemo && !m.entries.length && !(m.presentations || []).length ? '<button id="load-demo" class="text-button">觀看示範 / View demo</button>' : ""}</div>
 <div class="stats">${[
       ["本次議題", m.entries.length, "all"],
@@ -131,7 +136,7 @@ function render() {
       )
       .join("")}</div>
 <div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
-<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與加密備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button><button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button><button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題">${
+<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與加密備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題">${
       list.length
         ? list
             .map((x, i) => {
@@ -156,6 +161,24 @@ function render() {
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
     }</section></div>${slides.length ? `<section class="slide-panel"><div class="list-heading"><h2>簡報文字參考 <span>${slides.length} 頁</span></h2><div><button id="slide-prev" class="secondary" ${slideIndex === 0 ? "disabled" : ""}>←</button> <span>${slideIndex + 1} / ${slides.length}</span> <button id="slide-next" class="secondary" ${slideIndex === slides.length - 1 ? "disabled" : ""}>→</button> </div></div><p class="subtitle">僅擷取文字，圖片、圖表與版面請使用原始 PowerPoint 確認。簡報原檔與文字參考會一起納入加密備份。</p><pre>${esc(slides[slideIndex].text || "本頁沒有可擷取的文字")}</pre></section>` : ""}<footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
   bind();
+  const nav = $(".sidebar nav"),
+    active = nav?.querySelector(".meeting.active");
+  if (nav) {
+    nav.scrollTop = navScroll;
+    nav.scrollLeft = navLeft;
+    if (active) {
+      const n = nav.getBoundingClientRect(),
+        a = active.getBoundingClientRect();
+      if (nav.scrollHeight > nav.clientHeight) {
+        if (a.top < n.top) nav.scrollTop -= n.top - a.top;
+        else if (a.bottom > n.bottom) nav.scrollTop += a.bottom - n.bottom;
+      }
+      if (nav.scrollWidth > nav.clientWidth) {
+        if (a.left < n.left) nav.scrollLeft -= n.left - a.left;
+        else if (a.right > n.right) nav.scrollLeft += a.right - n.right;
+      }
+    }
+  }
 }
 function modal(title, body, onSubmit) {
   const d = $("#dialog");
@@ -189,6 +212,7 @@ const error = '<p id="modal-error" class="error" role="alert"></p>';
 function chooseFile(accept, handler) {
   const f = $("#file");
   f.accept = accept;
+  f.multiple = false;
   f.value = "";
   f.onchange = async () => {
     if (!f.files[0]) return;
@@ -201,6 +225,22 @@ function chooseFile(accept, handler) {
   f.click();
 }
 function bind() {
+  $("#add-history").onclick = historicalMeeting;
+  $("#import-history").onclick = () =>
+    modal(
+      "批次上傳歷次 PPT / Import historical slides",
+      `<p>依封面的次數與日期建立／選取會議。之後逐場確認議題整理。</p><label class="check"><input name="textOnly" type="checkbox"> 僅保存文字與表格，原始 PPT 留在自己的公司資料夾 / Save extracted text only</label><p>勾選後不保留圖片與可下載的原始 PPT，可減少備份大小並避免原檔合計 40 MB 上限；完整原檔請自行保留。單一上傳檔仍限 25 MB。</p>${error}<button type="submit" class="primary">開始選取 PPT / Choose files</button>`,
+      (f) => {
+        const textOnly = !!f.get("textOnly");
+        $("#dialog").close();
+        const file = $("#file");
+        file.accept = ".pptx";
+        file.multiple = true;
+        file.value = "";
+        file.onchange = () => importHistoricalPpts([...file.files], textOnly);
+        file.click();
+      },
+    );
   $("#load-demo")?.addEventListener("click", () => {
     state = demo();
     selected = state.meetings.at(-1).id;
@@ -406,7 +446,7 @@ function bind() {
         async (f) => {
           const loaded = await decryptBackup(text, f.get("password"));
           if (!loaded.meetings.length) throw Error("備份沒有會議");
-          state = loaded;
+          state = sortMeetings(loaded);
           selected = state.meetings.at(-1).id;
           entryId = null;
           presentationId = null;
@@ -488,7 +528,7 @@ function newMeeting() {
       if (state.meetings.some((x) => meetingNumber(x) === m.number))
         throw Error("此會議次數已存在");
       if (!f.get("carry")) m.entries = [];
-      state.meetings.push(m);
+      addMeeting(state, m);
       selected = m.id;
       entryId = null;
       query = "";
@@ -503,7 +543,7 @@ async function importWord(file) {
   const idx = state.meetings.findIndex((m) => m.id === selected);
   const known = new Map();
   state.meetings
-    .slice(0, idx)
+    .filter((m) => m.id !== selected)
     .forEach((m) => m.entries.forEach((e) => known.set(e.issueId, e)));
   const normalize = (s) => s.replace(/\s+/g, "").toLowerCase();
   modal(
@@ -513,7 +553,7 @@ async function importWord(file) {
         const suggested = [...known].find(
           ([id, x]) => normalize(x.topic) === normalize(e.topic),
         )?.[0];
-        return `<article><h3>${i + 1}. ${esc(e.topic)} <span class="badge ${e.status}">${statuses[e.status]}</span></h3><p>${esc(e.description)}</p><label class="field">跨週議題連結<select name="link-${i}"><option value="">新增獨立議題</option>${[...known].map(([id, x]) => `<option value="${esc(id)}" ${id === suggested ? "selected" : ""}>延續：${esc(x.topic)}</option>`).join("")}</select></label></article>`;
+        return `<article><h3>${i + 1}. ${esc(e.topic)} <span class="badge ${e.status}">${statuses[e.status]}</span></h3><p>${esc(e.description)}</p><label class="field">跨週議題連結<select name="link-${i}"><option value="">新增獨立議題</option>${[...known].map(([id, x]) => `<option value="${esc(id)}" ${id === suggested ? "selected" : ""}>連結其他會議：${esc(x.topic)}</option>`).join("")}</select></label></article>`;
       })
       .join(
         "",
@@ -537,33 +577,44 @@ async function importWord(file) {
     },
   );
 }
-async function uploadPpt(file) {
-  const meeting = current();
+async function uploadPpt(
+  file,
+  {
+    target = current(),
+    prepare = true,
+    parsedSlides,
+    retainOriginal = true,
+  } = {},
+) {
+  const meeting = target;
   if (!file.name.toLowerCase().endsWith(".pptx"))
     throw Error("請先將舊版 .ppt 另存為 .pptx");
   const total = state.meetings
     .flatMap((m) => m.presentations || [])
-    .reduce((n, p) => n + (p.data.length * 3) / 4, 0);
-  if (total + file.size > 40 * 1024 * 1024)
+    .reduce((n, p) => n + ((p.data?.length || 0) * 3) / 4, 0);
+  if (retainOriginal && total + file.size > 40 * 1024 * 1024)
     throw Error("所有會議簡報總大小上限為 40 MB，請先備份並移除不需要的附件");
   if ((meeting.presentations || []).length >= 20)
     throw Error("每場會議最多 20 份簡報");
-  const slides = await readPptx(file);
+  const slides = parsedSlides || (await readPptx(file));
   if (slides.length > 500 || slides.some((s) => s.text.length > 1000000))
     throw Error("簡報內容過大");
   const p = {
     id: uid(),
     name: file.name,
-    data: base64(new Uint8Array(await file.arrayBuffer())),
+    data: retainOriginal
+      ? base64(new Uint8Array(await file.arrayBuffer()))
+      : "",
     slides,
   };
   (meeting.presentations ??= []).push(p);
+  selected = meeting.id;
   presentationId = p.id;
   slideIndex = 0;
   change();
   render();
   toast("簡報已加入本次會議，請下載加密備份保存");
-  preparePpt(p);
+  if (prepare) preparePpt(p);
 }
 function bilingualInputs(e, key, label, textarea = false) {
   const input = (k, lang) =>
@@ -595,15 +646,10 @@ async function preparePpt(p) {
     metadata.date &&
     !state.meetings.some(
       (m) => m.id !== meeting.id && meetingNumber(m) === metadata.number,
-    ) &&
-    !(idx > 0 && metadata.date <= state.meetings[idx - 1].date) &&
-    !(
-      idx < state.meetings.length - 1 &&
-      metadata.date >= state.meetings[idx + 1].date
     );
-  state.meetings
-    .slice(0, idx + 1)
-    .forEach((m) => m.entries.forEach((e) => known.set(e.issueId, e)));
+  state.meetings.forEach((m) =>
+    m.entries.forEach((e) => known.set(e.issueId, e)),
+  );
   const normalized = (s) =>
     (s || "").replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
   modal(
@@ -635,7 +681,7 @@ async function preparePpt(p) {
             : byItem.length === 1
               ? byItem[0][0]
               : "";
-        return `<article data-draft="${i}"><label class="check"><input type="checkbox" name="include-${i}" ${e.recommended ? "checked" : ""}> ${i + 1}. 來源頁 / Slides ${e.sourceSlides.join(", ")} <span class="badge ${e.status}">${statuses[e.status]}</span></label><p class="draft-flags">${e.hidden ? "隱藏頁 / Hidden · " : ""}${e.annex ? "附錄 / Annex · " : ""}${e.confidence === "review" ? "版型需確認 / Layout needs review" : ""}</p><div class="bilingual-grid"><label class="field">議題 / Topic (ZH)<input name="topic-${i}" value="${esc(e.topic)}" placeholder="待補中文 / Chinese missing"></label><label class="field">議題 / Topic (EN)<input name="topicEn-${i}" value="${esc(e.topicEn)}" placeholder="待翻譯 / Translation required"></label><label class="field">重點 / Key points (ZH)<textarea name="summary-${i}">${esc(e.summary)}</textarea></label><label class="field">重點 / Key points (EN)<textarea name="summaryEn-${i}" placeholder="Source English missing; please translate">${esc(e.summaryEn)}</textarea></label><label class="field">負責人 / Owner (ZH)<input name="owner-${i}" value="${esc(e.owner)}"></label><label class="field">負責人 / Owner (EN)<input name="ownerEn-${i}" value="${esc(e.ownerEn)}"></label></div><label class="field">議題連結 / Topic link<select name="agenda-link-${i}"><option value="">新增議題 / New topic</option>${[...known].map(([id, x]) => `<option value="${esc(id)}" ${id === suggested ? "selected" : ""}>${meeting.entries.some((y) => y.issueId === id) ? "更新本次" : "延續前次"} / ${meeting.entries.some((y) => y.issueId === id) ? "Update current" : "Continue"}: ${esc(x.topic || x.topicEn)}</option>`).join("")}</select></label><details class="source-details"><summary>核對中英文原文 / Review source text</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "Chinese source not provided")}</pre><pre>${esc(e.sourceTextEn || "English source not provided")}</pre></div></details></article>`;
+        return `<article data-draft="${i}"><label class="check"><input type="checkbox" name="include-${i}" ${e.recommended ? "checked" : ""}> ${i + 1}. 來源頁 / Slides ${e.sourceSlides.join(", ")} <span class="badge ${e.status}">${statuses[e.status]}</span></label><p class="draft-flags">${e.hidden ? "隱藏頁 / Hidden · " : ""}${e.annex ? "附錄 / Annex · " : ""}${e.confidence === "review" ? "版型需確認 / Layout needs review" : ""}</p><div class="bilingual-grid"><label class="field">議題 / Topic (ZH)<input name="topic-${i}" value="${esc(e.topic)}" placeholder="待補中文 / Chinese missing"></label><label class="field">議題 / Topic (EN)<input name="topicEn-${i}" value="${esc(e.topicEn)}" placeholder="待翻譯 / Translation required"></label><label class="field">重點 / Key points (ZH)<textarea name="summary-${i}">${esc(e.summary)}</textarea></label><label class="field">重點 / Key points (EN)<textarea name="summaryEn-${i}" placeholder="Source English missing; please translate">${esc(e.summaryEn)}</textarea></label><label class="field">負責人 / Owner (ZH)<input name="owner-${i}" value="${esc(e.owner)}"></label><label class="field">負責人 / Owner (EN)<input name="ownerEn-${i}" value="${esc(e.ownerEn)}"></label></div><label class="field">議題連結 / Topic link<select name="agenda-link-${i}"><option value="">新增議題 / New topic</option>${[...known].map(([id, x]) => `<option value="${esc(id)}" ${id === suggested ? "selected" : ""}>${meeting.entries.some((y) => y.issueId === id) ? "更新本次" : "連結其他會議"} / ${meeting.entries.some((y) => y.issueId === id) ? "Update current" : "Link existing"}: ${esc(x.topic || x.topicEn)}</option>`).join("")}</select></label><details class="source-details"><summary>核對中英文原文 / Review source text</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "Chinese source not provided")}</pre><pre>${esc(e.sourceTextEn || "English source not provided")}</pre></div></details></article>`;
       })
       .join(
         "",
@@ -672,6 +718,7 @@ async function preparePpt(p) {
         meeting.title = `第 ${metadata.number} 次週會`;
         meeting.titleEn = `Weekly Meeting #${metadata.number}`;
       }
+      sortMeetings(state);
       entryId = changed[0].issueId;
       filter = "all";
       query = "";
@@ -707,21 +754,111 @@ async function preparePpt(p) {
   };
   counter();
 }
+function historicalMeeting() {
+  const base = current(),
+    date = new Date(`${base.date}T12:00:00`);
+  date.setDate(date.getDate() - 7);
+  const number = Math.max(1, meetingNumber(base) - 1);
+  modal(
+    "新增歷史／其他會議 / Add meeting",
+    `<p>可加入第 218、217 次或任意日期的會議，不會帶入或改寫其他會議紀錄。 / Add meetings in any date order.</p><label class="field">會議次數 / Meeting No.<input name="number" type="number" min="1" max="999999" required value="${number}"></label><label class="field">會議日期 / Date<input name="date" type="date" required value="${date.toLocaleDateString("sv-SE")}"></label><label class="field">會議名稱 / Title (ZH)<input name="title" required value="第 ${number} 次週會"></label><label class="field">會議名稱 / Title (EN)<input name="titleEn" value="Weekly Meeting #${number}"></label>${error}<button type="submit" class="primary">新增會議 / Add meeting</button>`,
+    (f) => {
+      const m = {
+        id: uid(),
+        number: Number(f.get("number")),
+        date: f.get("date"),
+        title: f.get("title").trim(),
+        titleEn: f.get("titleEn") || "",
+        entries: [],
+        presentations: [],
+      };
+      addMeeting(state, m);
+      state.meetings = state.meetings.filter(
+        (x) =>
+          x.id === m.id ||
+          x.title ||
+          meetingNumber(x) ||
+          x.entries.length ||
+          (x.presentations || []).length,
+      );
+      selected = m.id;
+      entryId = null;
+      presentationId = null;
+      filter = "all";
+      query = "";
+      change();
+      render();
+    },
+  );
+}
+async function importHistoricalPpts(files, textOnly = false) {
+  if (!files.length) return;
+  const starter =
+    state.meetings.length === 1 &&
+    !state.meetings[0].title &&
+    !meetingNumber(state.meetings[0]) &&
+    !state.meetings[0].entries.length &&
+    !(state.meetings[0].presentations || []).length
+      ? state.meetings[0].id
+      : null;
+  const results = [];
+  for (const file of files) {
+    let created = null;
+    try {
+      const slides = await readPptx(file),
+        metadata = presentationMetadata(slides);
+      if (!metadata.number || !metadata.date)
+        throw Error(
+          "無法辨識封面日期或次數，請用「新增歷史／其他會議」手動建立",
+        );
+      let meeting = state.meetings.find(
+        (m) => meetingNumber(m) === metadata.number,
+      );
+      if (!meeting) {
+        meeting = {
+          id: uid(),
+          number: metadata.number,
+          date: metadata.date,
+          title: `第 ${metadata.number} 次週會`,
+          titleEn: `Weekly Meeting #${metadata.number}`,
+          entries: [],
+          presentations: [],
+        };
+        addMeeting(state, meeting);
+        created = meeting.id;
+      }
+      await uploadPpt(file, {
+        target: meeting,
+        prepare: false,
+        parsedSlides: slides,
+        retainOriginal: !textOnly,
+      });
+      if (starter)
+        state.meetings = state.meetings.filter((m) => m.id !== starter);
+      results.push({
+        name: file.name,
+        text: `已加入第 ${metadata.number} 次會議${textOnly ? "文字與表格（不含原檔）" : "附件"}`,
+      });
+    } catch (e) {
+      if (created)
+        state.meetings = state.meetings.filter((m) => m.id !== created);
+      results.push({ name: file.name, text: e.message });
+    }
+  }
+  render();
+  modal(
+    "歷次 PPT 上傳結果 / Import results",
+    `<p>附件已依封面次數分配到會議。每場會議的議題仍需按「整理成會議紀錄」確認，不會自動覆寫既有紀錄。</p><p>原檔合計上限 40 MB；未成功的檔案會列出原因。 / Original files: 40 MB total limit.</p><div class="import-list">${results.map((r) => `<article><h3>${esc(r.name)}</h3><p>${esc(r.text)}</p></article>`).join("")}</div>`,
+  );
+}
 function editMeeting() {
   const m = current();
   modal(
     "編輯會議資料",
-    `<label class="field">會議次數 / Meeting No.<input name="number" type="number" min="1" max="999999" required value="${meetingNumber(m) || 219}"></label><label class="field">會議名稱 / Title (ZH)<input name="title" required value="${esc(m.title)}"></label><label class="field">會議日期 / Date<input name="date" type="date" required value="${esc(m.date)}"></label><label class="field">會議名稱 / Title (EN)<input name="titleEn" value="${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}"></label><p>名稱可自由修改；次數用於建立下次會議。修改日期需保持現有會議順序。</p>${error}<button type="submit" class="primary">儲存會議資料</button>`,
+    `<label class="field">會議次數 / Meeting No.<input name="number" type="number" min="1" max="999999" required value="${meetingNumber(m) || 219}"></label><label class="field">會議名稱 / Title (ZH)<input name="title" required value="${esc(m.title)}"></label><label class="field">會議日期 / Date<input name="date" type="date" required value="${esc(m.date)}"></label><label class="field">會議名稱 / Title (EN)<input name="titleEn" value="${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}"></label><p>可修改為任何日期，列表會自動依日期排序。 / Meetings are sorted by date.</p>${error}<button type="submit" class="primary">儲存會議資料</button>`,
     (f) => {
-      const index = state.meetings.indexOf(m),
-        date = f.get("date"),
+      const date = f.get("date"),
         number = Number(f.get("number"));
-      if (
-        (index > 0 && date <= state.meetings[index - 1].date) ||
-        (index < state.meetings.length - 1 &&
-          date >= state.meetings[index + 1].date)
-      )
-        throw Error("日期必須介於前後會議之間");
       if (
         state.meetings.some((x) => x.id !== m.id && meetingNumber(x) === number)
       )
@@ -730,6 +867,7 @@ function editMeeting() {
       m.number = number;
       m.titleEn = f.get("titleEn") || "";
       m.title = f.get("title").trim() || `第 ${number} 次週會`;
+      sortMeetings(state);
       change();
       render();
     },

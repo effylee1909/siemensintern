@@ -146,7 +146,7 @@ export function validateState(s) {
           typeof p.name !== "string" ||
           !p.name.toLowerCase().endsWith(".pptx") ||
           typeof p.data !== "string" ||
-          !/^UEs[A-Za-z0-9+/]*={0,2}$/.test(p.data) ||
+          (p.data !== "" && !/^UEs[A-Za-z0-9+/]*={0,2}$/.test(p.data)) ||
           p.data.length > Math.ceil((25 * 1024 * 1024) / 3) * 4 ||
           !Array.isArray(p.slides) ||
           p.slides.length > 500 ||
@@ -305,4 +305,25 @@ export function base64(a) {
 export function bytes(s) {
   if (typeof s !== "string") throw Error("備份格式不正確");
   return Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+}
+export function sortMeetings(state) {
+  state.meetings.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) || meetingNumber(a) - meetingNumber(b),
+  );
+  return state;
+}
+export function addMeeting(state, meeting) {
+  if (
+    state.meetings.some(
+      (m) =>
+        m.id === meeting.id ||
+        (meetingNumber(meeting) > 0 &&
+          meetingNumber(m) === meetingNumber(meeting)),
+    )
+  )
+    throw Error("此會議次數已存在，請選取既有會議上傳簡報");
+  state.meetings.push(meeting);
+  sortMeetings(state);
+  return meeting;
 }

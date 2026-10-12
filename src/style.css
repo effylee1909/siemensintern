@@ -1126,3 +1126,180 @@ dialog:has(.agenda-preview) {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+/* Keep the layout; improve reading contrast and isolate the meeting list. */
+.sidebar {
+  height: 100dvh;
+  overflow: hidden;
+}
+.sidebar > nav {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #73958d #f0f5f3;
+}
+.sidebar > nav:focus-visible {
+  outline: 2px solid #157f74;
+}
+.sidebar .brand,
+.workspace-label,
+.nav-title,
+.meeting-actions,
+.sidebar-bottom {
+  flex-shrink: 0;
+}
+.meeting-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.meeting-actions .secondary {
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+}
+.sidebar-bottom {
+  padding-top: 16px;
+  margin-top: 16px;
+}
+.field,
+.agenda-preview .field {
+  font-size: 14px;
+  color: #405466;
+  font-weight: 500;
+}
+.field input,
+.field select,
+.field textarea,
+.bilingual-grid textarea,
+.agenda-preview .field textarea,
+.this-week textarea,
+.note-field textarea {
+  font-size: 15px;
+  color: #203647;
+  line-height: 1.8;
+}
+.field input[data-field="topic"] {
+  font-size: 18px;
+}
+.field input::placeholder,
+.field textarea::placeholder,
+.this-week textarea::placeholder,
+.search::placeholder {
+  color: #687b88;
+  opacity: 1;
+}
+.previous-text,
+.previous-note,
+.empty-history,
+.source-details pre,
+.slide-panel pre {
+  font-size: 14px;
+  color: #405466;
+  line-height: 1.9;
+}
+.panel-heading,
+.panel-heading small,
+.discussion-label,
+.subtitle,
+.topic-en,
+.meeting-title-en,
+.issue p,
+.issue-meta,
+.field,
+.attachment-empty,
+.meeting small,
+.search {
+  color: #4b6270;
+}
+.panel-heading {
+  font-size: 14px;
+}
+.panel-heading small,
+.discussion-label,
+.issue-meta,
+.meeting small,
+.source-details,
+.editor-footer > span {
+  font-size: 12px;
+  color: #516b78;
+}
+.issue h3 {
+  font-size: 15px;
+}
+.issue p,
+.topic-en,
+.subtitle,
+.search {
+  font-size: 14px;
+}
+.meeting {
+  font-size: 14px;
+}
+.agenda-preview .field textarea {
+  font-size: 14px;
+}
+.bilingual-grid input {
+  min-width: 0;
+}
+dialog p {
+  color: #435969;
+}
+.notice small {
+  color: #4e6c60;
+}
+.editor-footer > span {
+  color: #4f6874;
+}
+@media (max-width: 760px) {
+  .sidebar {
+    height: auto;
+    overflow: visible;
+  }
+  .sidebar > nav {
+    flex: none;
+    display: flex;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-gutter: auto;
+  }
+  .sidebar > nav .meeting {
+    flex: 0 0 auto;
+  }
+  .meeting-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+  .meeting-actions .text-button {
+    grid-column: 1/-1;
+    text-align: left;
+  }
+  .field input,
+  .field textarea,
+  .field select,
+  .this-week textarea {
+    font-size: 16px;
+  }
+}
+.badge {
+  font-size: 12px;
+}
+.stat small,
+.stat > span {
+  font-size: 12px;
+  color: #526978;
+}
+.date-tag {
+  font-size: 14px;
+  color: #405466;
+}
+.meeting-title-en {
+  font-size: 14px;
+}
+.text-only-note {
+  font-size: 13px;
+  color: #526b78;
+}
