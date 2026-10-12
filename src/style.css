@@ -1103,3 +1103,26 @@ dialog:has(.agenda-preview) {
     font-size: 12px;
   }
 }
+.agenda-selection {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px;
+  background: #edf6f3;
+  border-radius: 8px;
+  margin: 14px 0;
+}
+.agenda-selection strong {
+  width: 100%;
+  font-size: 13px;
+  color: #277d6b;
+}
+.stats {
+  grid-template-columns: repeat(5, 1fr);
+}
+@media (max-width: 760px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

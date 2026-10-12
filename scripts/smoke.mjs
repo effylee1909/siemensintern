@@ -20,6 +20,8 @@ page.on("request", (r) => {
 page.on("dialog", (d) => d.dismiss());
 try {
   await page.goto("http://127.0.0.1:5173");
+  assert.equal(await page.locator(".issue").count(), 0);
+  await page.getByRole("button", { name: "觀看示範 / View demo" }).click();
   await page.getByRole("heading", { name: "第 220 次週會" }).waitFor();
   assert.equal(await page.locator(".issue").count(), 3);
   await page.screenshot({
@@ -73,14 +75,12 @@ try {
     );
   });
   await page.getByRole("button", { name: "＋ 上傳會議 PPT" }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "meeting-221.pptx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      buffer: Buffer.from(pptBytes),
-    });
+  await page.locator("#file").setInputFiles({
+    name: "meeting-221.pptx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    buffer: Buffer.from(pptBytes),
+  });
   await page.locator(".attachment").waitFor();
   assert.match(
     await page.locator(".slide-panel pre").innerText(),
@@ -115,13 +115,11 @@ try {
   const encrypted = await readFile(await download.path(), "utf8");
   assert.ok(!encrypted.includes("本次測試決議"));
   await page.getByRole("button", { name: "開啟備份", exact: true }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "test.meeting",
-      mimeType: "application/octet-stream",
-      buffer: Buffer.from(encrypted),
-    });
+  await page.locator("#file").setInputFiles({
+    name: "test.meeting",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.from(encrypted),
+  });
   await page.locator('[name="password"]').fill("wrong");
   await page.locator('dialog input[type="checkbox"]').check();
   await page.getByRole("button", { name: "解密並開啟" }).click();
@@ -186,14 +184,12 @@ try {
     .getByRole("button", { name: "建立空白工作區", exact: true })
     .click();
   await page.getByRole("button", { name: "↑ 匯入 Word" }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "fixture.docx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      buffer: Buffer.from(fixture),
-    });
+  await page.locator("#file").setInputFiles({
+    name: "fixture.docx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: Buffer.from(fixture),
+  });
   await page.getByRole("button", { name: "確認匯入 2 個議題" }).click();
   assert.equal(await page.locator(".issue").count(), 2);
   await page.getByRole("button", { name: "＋ 建立下次會議" }).first().click();
@@ -201,14 +197,12 @@ try {
   await page.getByRole("button", { name: "建立並帶入議題" }).click();
   assert.equal(await page.locator(".issue").count(), 0);
   await page.getByRole("button", { name: "↑ 匯入 Word" }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "fixture.docx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      buffer: Buffer.from(fixture),
-    });
+  await page.locator("#file").setInputFiles({
+    name: "fixture.docx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: Buffer.from(fixture),
+  });
   assert.ok(await page.locator('select[name="link-0"]').inputValue());
   await page.getByRole("button", { name: "確認匯入 2 個議題" }).click();
   assert.match(await page.locator(".previous-text").innerText(), /待處理事項/);

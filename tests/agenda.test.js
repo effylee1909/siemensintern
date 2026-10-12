@@ -35,7 +35,7 @@ test("extractive key points preserve original sentences, obligations and numbers
   assert.match(s, /3–5/);
   for (const line of s.split("\n")) assert.ok(text.includes(line.slice(2)));
 });
-test("preparation keeps same item numbers in distinct stages separate and excludes hidden/closed by default", () => {
+test("preparation keeps same item numbers in distinct stages separate and excludes only hidden pages by default", () => {
   const slides = [
     {
       number: 3,
@@ -66,7 +66,7 @@ test("preparation keeps same item numbers in distinct stages separate and exclud
   assert.equal(d.length, 4);
   assert.deepEqual(
     d.map((x) => x.recommended),
-    [true, true, false, false],
+    [true, true, false, true],
   );
   assert.equal(d[0].description, "");
   assert.equal(d[0].descriptionEn, "");
@@ -143,4 +143,29 @@ test("detect meeting numbers and ROC/English dates from covers", () => {
     presentationMetadata([{ text: "9 September 2026 Weekly Meeting #219" }]),
     { number: 219, date: "2026-09-09" },
   );
+});
+
+test("missing PPT fields stay blank and repeated titles do not merge distinct rows", () => {
+  const table = [
+    ["議題 / Topic", "辦理內容 / Description"],
+    ["相同標題\nSame topic", "第一項內容\nFirst item"],
+    ["相同標題\nSame topic", "第二項內容\nSecond item"],
+  ];
+  const d = prepareAgenda([{ number: 1, tables: [table] }]);
+  assert.equal(d.length, 2);
+  for (const e of d) {
+    for (const k of [
+      "owner",
+      "ownerEn",
+      "category",
+      "categoryEn",
+      "status",
+      "description",
+      "descriptionEn",
+      "note",
+      "noteEn",
+    ])
+      assert.equal(e[k], "");
+  }
+  assert.match(d[1].summaryEn, /Second item/);
 });

@@ -201,7 +201,7 @@ export function validateState(s) {
       if (
         typeof e.issueId !== "string" ||
         issues.has(e.issueId) ||
-        !["open", "blocked", "closed"].includes(e.status) ||
+        !["", "open", "blocked", "closed"].includes(e.status) ||
         ["topic", "description", "note", "owner", "category"].some(
           (k) => typeof e[k] !== "string" || e[k].length > 100000,
         )

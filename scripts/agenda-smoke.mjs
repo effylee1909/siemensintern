@@ -38,27 +38,30 @@ const fixture = zipSync({
 });
 try {
   await page.goto("http://127.0.0.1:5173");
-  await page.getByRole("button", { name: "開始我的紀錄" }).click();
+  await page.locator("#clear").click();
   await page.locator('dialog [name="date"]').fill("2026-09-09");
   await page.locator("dialog input[type=checkbox]").check();
   await page
     .getByRole("button", { name: "建立空白工作區", exact: true })
     .click();
   await page.getByRole("button", { name: "＋ 上傳會議 PPT" }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "bilingual.pptx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      buffer: Buffer.from(fixture),
-    });
+  await page.locator("#file").setInputFiles({
+    name: "bilingual.pptx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    buffer: Buffer.from(fixture),
+  });
   await page.locator(".agenda-preview").waitFor();
   assert.equal(await page.locator(".agenda-preview article").count(), 3);
   assert.equal(
     await page.locator(".agenda-preview input[type=checkbox]:checked").count(),
-    1,
+    2,
   );
+  assert.match(await page.locator("#agenda-count").innerText(), /已選 2/);
+  await page.locator("#agenda-all").click();
+  assert.match(await page.locator("#agenda-count").innerText(), /已選 3/);
+  await page.locator("#agenda-visible").click();
+  await page.locator("[name=include-2]").uncheck();
   assert.match(
     await page.locator('[name="summaryEn-0"]').inputValue(),
     /4 tests.*22 Oct/,
@@ -90,6 +93,7 @@ try {
   await page
     .getByRole("button", { name: "整理成會議紀錄 / Prepare minutes" })
     .click();
+  await page.locator("[name=include-2]").uncheck();
   await page
     .getByRole("button", { name: "確認建立紀錄 / Apply agenda" })
     .click();
@@ -141,13 +145,11 @@ try {
   await page.getByRole("button", { name: "加密並下載" }).click();
   const backup = await readFile(await (await d).path());
   await page.getByRole("button", { name: "開啟備份", exact: true }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "bilingual.meeting",
-      mimeType: "application/octet-stream",
-      buffer: backup,
-    });
+  await page.locator("#file").setInputFiles({
+    name: "bilingual.meeting",
+    mimeType: "application/octet-stream",
+    buffer: backup,
+  });
   await page.locator("[name=password]").fill("bilingual backup password");
   await page.locator("dialog input[type=checkbox]").check();
   await page.getByRole("button", { name: "解密並開啟" }).click();
@@ -160,6 +162,75 @@ try {
     await page.locator("[data-field=summaryEn]").inputValue(),
     /4 tests/,
   );
+  await page.locator("#clear").click();
+  await page.locator("dialog input[type=checkbox]").check();
+  await page
+    .getByRole("button", { name: "建立空白工作區", exact: true })
+    .click();
+  const five = zipSync(
+    Object.fromEntries(
+      Array.from({ length: 5 }, (_, i) => [
+        `ppt/slides/slide${i + 1}.xml`,
+        strToU8(
+          `<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:graphicFrame><a:graphic><a:graphicData><a:tbl>${row(["Topic", "Description"])}${row([`議題 ${i + 1}\nTopic ${i + 1}`, `內容 ${i + 1}\nContent ${i + 1}`])}</a:tbl></a:graphicData></a:graphic></p:graphicFrame></p:spTree></p:cSld></p:sld>`,
+        ),
+      ]),
+    ),
+  );
+  await page.getByRole("button", { name: "＋ 上傳會議 PPT" }).click();
+  await page.locator("#file").setInputFiles({
+    name: "five-topics.pptx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    buffer: Buffer.from(five),
+  });
+  await page.locator(".agenda-preview").waitFor();
+  assert.equal(await page.locator(".agenda-preview article").count(), 5);
+  assert.match(await page.locator("#agenda-count").innerText(), /已選 5/);
+  await page
+    .getByRole("button", { name: "確認建立紀錄 / Apply agenda" })
+    .click();
+  assert.equal(await page.locator(".issue").count(), 5);
+  for (const field of [
+    "owner",
+    "ownerEn",
+    "category",
+    "categoryEn",
+    "status",
+    "description",
+    "descriptionEn",
+    "note",
+    "noteEn",
+  ])
+    assert.equal(await page.locator(`[data-field=${field}]`).inputValue(), "");
+  const blankExport = await page.evaluate(async () => {
+    const { exportDocx, readDocx } = await import("/src/office.js");
+    const { unzipSync, strFromU8 } = await import(
+      "/node_modules/fflate/esm/browser.js"
+    );
+    const file = exportDocx({
+      title: "",
+      date: "2026-10-12",
+      entries: [
+        {
+          topic: "測試",
+          description: "",
+          note: "",
+          owner: "",
+          category: "",
+          status: "",
+        },
+      ],
+    });
+    return {
+      xml: strFromU8(unzipSync(file)["word/document.xml"]),
+      row: (await readDocx(new File([file], "empty.docx")))[0],
+    };
+  });
+  assert.ok(!blankExport.xml.includes("Not provided"));
+  assert.equal(blankExport.row.owner, "");
+  assert.equal(blankExport.row.category, "");
+  assert.equal(blankExport.row.status, "");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(
     await page.evaluate(

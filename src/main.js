@@ -29,16 +29,32 @@ const $ = (s) => document.querySelector(s),
           "'": "&#39;",
         })[c],
     );
-let state = demo(),
+function blankWorkspace() {
+  return {
+    version: 1,
+    meetings: [
+      {
+        id: uid(),
+        date: new Date().toLocaleDateString("sv-SE"),
+        title: "",
+        titleEn: "",
+        entries: [],
+        presentations: [],
+      },
+    ],
+  };
+}
+let state = blankWorkspace(),
   selected = state.meetings.at(-1).id,
-  entryId = state.meetings.at(-1).entries[0].issueId,
+  entryId = null,
   filter = "all",
   query = "",
   presentationId = null,
   slideIndex = 0,
   dirty = false,
-  isDemo = true;
+  isDemo = false;
 const statuses = {
+  "": "未填寫 / Not specified",
   open: "進行中 / Open",
   blocked: "待協調 / Pending",
   closed: "已關閉 / Closed",
@@ -93,9 +109,10 @@ function render() {
       .join(
         "",
       )}</nav><button class="new-meeting secondary">＋ 建立下次會議</button><div class="sidebar-bottom"><div class="local-label"><span class="dot"></span> 本機處理模式</div><p>檔案在瀏覽器中解析。<br>不呼叫雲端 AI 或外部服務。</p><button id="privacy" class="text-button">資料保護與使用說明 ↗</button></div></aside>
-<main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${dirty ? "尚未下載備份 · 僅在此分頁" : "資料僅在此分頁"}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 加密備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title)} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || `Weekly Meeting #${meetingNumber(m)}`)}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>本機暫存模式</strong> · 重新整理或關閉前，請下載加密備份。"}<small>Word 匯出為未加密文件，請只存放於公司核准的位置。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button></div>
+<main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${dirty ? "尚未下載備份 · 僅在此分頁" : "資料僅在此分頁"}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 加密備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title || "尚未設定會議 / Meeting not set")} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>本機暫存模式</strong> · 重新整理或關閉前，請下載加密備份。"}<small>Word 匯出為未加密文件，請只存放於公司核准的位置。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button>${!dirty && !isDemo && !m.entries.length && !(m.presentations || []).length ? '<button id="load-demo" class="text-button">觀看示範 / View demo</button>' : ""}</div>
 <div class="stats">${[
       ["本次議題", m.entries.length, "all"],
+      ["狀態未填", m.entries.filter((e) => e.status === "").length, ""],
       ["進行中", m.entries.filter((e) => e.status === "open").length, "open"],
       [
         "待協調",
@@ -184,6 +201,13 @@ function chooseFile(accept, handler) {
   f.click();
 }
 function bind() {
+  $("#load-demo")?.addEventListener("click", () => {
+    state = demo();
+    selected = state.meetings.at(-1).id;
+    entryId = null;
+    isDemo = true;
+    render();
+  });
   document
     .querySelectorAll("[data-prepare-ppt]")
     .forEach(
@@ -304,7 +328,7 @@ function bind() {
     query = "";
     const e = {
       issueId: uid(),
-      topic: "新議題",
+      topic: "",
       topicEn: "",
       summary: "",
       summaryEn: "",
@@ -314,9 +338,9 @@ function bind() {
       noteEn: "",
       owner: "",
       ownerEn: "",
-      status: "open",
-      category: "關鍵議題",
-      categoryEn: "Key issues",
+      status: "",
+      category: "",
+      categoryEn: "",
     };
     current().entries.push(e);
     entryId = e.issueId;
@@ -584,15 +608,23 @@ async function preparePpt(p) {
     (s || "").replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
   modal(
     "PPT 整理成會議紀錄 / Prepare minutes",
-    `${metadata.number || metadata.date ? `<div class="detected-metadata"><p>簡報封面 / Detected cover: 第 ${metadata.number || "—"} 次 · ${metadata.date || "—"}</p><label class="check"><input name="useMetadata" type="checkbox" ${fits && !meeting.entries.length ? "checked" : ""} ${fits ? "" : "disabled"}> 採用封面的次數、日期與雙語會議名稱 / Use cover metadata</label>${fits ? "" : "<p>封面資料不足或與其他會議衝突，請使用「編輯會議資料」確認。 / Check meeting metadata manually.</p>"}</div>` : ""}<p>辨識 ${drafts.length} 個候選議題。請確認摘要、勾選本次要討論的議題，並連結既有議題。原始中英文完整保留，會議討論欄留白。</p><p class="warning">本機摘錄式摘要，不是 AI 翻譯。隱藏頁、附錄及關閉項目預設不選；圖表內容需人工核對。<br>Extractive summary only. Review source text and fill missing translations.</p><div class="import-list agenda-preview">${drafts
+    `${metadata.number || metadata.date ? `<div class="detected-metadata"><p>簡報封面 / Detected cover: 第 ${metadata.number || "—"} 次 · ${metadata.date || "—"}</p><label class="check"><input name="useMetadata" type="checkbox" ${fits && !meeting.entries.length ? "checked" : ""} ${fits ? "" : "disabled"}> 採用封面的次數、日期與雙語會議名稱 / Use cover metadata</label>${fits ? "" : "<p>封面資料不足或與其他會議衝突，請使用「編輯會議資料」確認。 / Check meeting metadata manually.</p>"}</div>` : ""}<p>共 ${p.slides.length} 頁簡報，辨識 ${drafts.length} 個候選議題（不是只取 3 個議題）。請確認摘要、勾選本次要討論的議題，並連結既有議題。原始中英文完整保留，會議討論欄留白。</p><p class="warning">每議題最多摘錄 3 個重點，議題數量沒有 3 個的限制。本機摘錄式摘要，不是 AI 翻譯。可見頁包含關閉議題也會預選；隱藏頁與附錄可另外勾選；圖表內容需人工核對。<br>Extractive summary only. Review source text and fill missing translations.</p><div class="agenda-selection"><strong id="agenda-count"></strong><button type="button" id="agenda-all" class="secondary">全選所有議題 / Select all</button><button type="button" id="agenda-visible" class="secondary">選取可見頁 / Visible pages</button><button type="button" id="agenda-none" class="text-button">取消全選 / Clear</button></div><div class="import-list agenda-preview">${drafts
       .map((e, i) => {
         const exact = [...known].filter(
           ([id, x]) =>
             (e.topic && normalized(x.topic) === normalized(e.topic)) ||
             (e.topicEn && normalized(x.topicEn) === normalized(e.topicEn)),
         );
+        const uniqueSourceItem =
+          (e.category || e.categoryEn) &&
+          drafts.filter(
+            (d) =>
+              d.sourceItem === e.sourceItem &&
+              normalized(d.category) === normalized(e.category),
+          ).length === 1;
         const byItem = [...known].filter(
           ([id, x]) =>
+            uniqueSourceItem &&
             e.sourceItem &&
             e.sourceItem === x.sourceItem &&
             normalized(e.category) === normalized(x.category),
@@ -648,12 +680,38 @@ async function preparePpt(p) {
       toast(`已整理 ${changed.length} 個雙語議題 / Topics prepared`);
     },
   );
+  const counter = () => {
+    $("#agenda-count").textContent =
+      `已選 ${document.querySelectorAll(".agenda-preview input[type=checkbox]:checked").length} / ${drafts.length} 個候選議題 · 待確認匯入 / Selected, pending confirmation`;
+  };
+  document
+    .querySelectorAll(".agenda-preview input[type=checkbox]")
+    .forEach((b) => (b.onchange = counter));
+  $("#agenda-all").onclick = () => {
+    document
+      .querySelectorAll(".agenda-preview input[type=checkbox]")
+      .forEach((b) => (b.checked = true));
+    counter();
+  };
+  $("#agenda-visible").onclick = () => {
+    document
+      .querySelectorAll(".agenda-preview input[type=checkbox]")
+      .forEach((b, i) => (b.checked = !drafts[i].hidden && !drafts[i].annex));
+    counter();
+  };
+  $("#agenda-none").onclick = () => {
+    document
+      .querySelectorAll(".agenda-preview input[type=checkbox]")
+      .forEach((b) => (b.checked = false));
+    counter();
+  };
+  counter();
 }
 function editMeeting() {
   const m = current();
   modal(
     "編輯會議資料",
-    `<label class="field">會議次數 / Meeting No.<input name="number" type="number" min="1" max="999999" required value="${meetingNumber(m) || 219}"></label><label class="field">會議名稱 / Title (ZH)<input name="title" required value="${esc(m.title)}"></label><label class="field">會議日期 / Date<input name="date" type="date" required value="${esc(m.date)}"></label><label class="field">會議名稱 / Title (EN)<input name="titleEn" value="${esc(m.titleEn || `Weekly Meeting #${meetingNumber(m)}`)}"></label><p>名稱可自由修改；次數用於建立下次會議。修改日期需保持現有會議順序。</p>${error}<button type="submit" class="primary">儲存會議資料</button>`,
+    `<label class="field">會議次數 / Meeting No.<input name="number" type="number" min="1" max="999999" required value="${meetingNumber(m) || 219}"></label><label class="field">會議名稱 / Title (ZH)<input name="title" required value="${esc(m.title)}"></label><label class="field">會議日期 / Date<input name="date" type="date" required value="${esc(m.date)}"></label><label class="field">會議名稱 / Title (EN)<input name="titleEn" value="${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}"></label><p>名稱可自由修改；次數用於建立下次會議。修改日期需保持現有會議順序。</p>${error}<button type="submit" class="primary">儲存會議資料</button>`,
     (f) => {
       const index = state.meetings.indexOf(m),
         date = f.get("date"),

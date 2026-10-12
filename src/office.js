@@ -66,12 +66,12 @@ export async function readDocx(file) {
       const bi = readBilingualCells(c[ti], c[di], note, c[pi]);
       entries.push(
         bi || {
-          topic: c[ti] || "未命名議題（請補填）",
+          topic: c[ti] || "",
           description: c[di] || "",
           note,
           owner: c[pi] || "",
-          category: `第 ${tableNo} 階段`,
-          status: /\bclosed\b|已關閉/i.test(note) ? "closed" : "open",
+          category: "",
+          status: /\bclosed\b|已關閉/i.test(note) ? "closed" : "",
         },
       );
     }
@@ -184,7 +184,7 @@ const para = (s) =>
       (l) => `<w:p><w:r><w:t xml:space="preserve">${esc(l)}</w:t></w:r></w:p>`,
     )
     .join("");
-const empty = "[未填寫 / Not provided]";
+const empty = "";
 const block = (label, value) => `${label}\n${value || empty}`;
 const markers = {
   topic: "議題 / Topic (ZH)",
@@ -213,7 +213,7 @@ function readBilingualCells(topic, description, note, owner) {
     note: "",
     owner: "",
     category: "",
-    status: "open",
+    status: "",
   };
   const reverse = new Map(Object.entries(markers).map(([k, v]) => [v, k]));
   let key = "";
@@ -225,7 +225,11 @@ function readBilingualCells(topic, description, note, owner) {
     if (reverse.has(line.trim())) {
       key = reverse.get(line.trim());
       result[key] = "";
-    } else if (key && line.trim() !== empty)
+    } else if (
+      key &&
+      line.trim() !== empty &&
+      line.trim() !== "[未填寫 / Not provided]"
+    )
       result[key] += (result[key] ? "\n" : "") + line;
   }
   const status = result.status;
@@ -233,7 +237,9 @@ function readBilingualCells(topic, description, note, owner) {
     ? "closed"
     : /blocked|待協調/i.test(status)
       ? "blocked"
-      : "open";
+      : /\bopen\b|進行中/i.test(status)
+        ? "open"
+        : "";
   return result;
 }
 export function exportDocx(meeting) {
@@ -248,8 +254,8 @@ export function exportDocx(meeting) {
   const body =
     para(`會議紀錄 / Minutes of Meeting: ${meeting.title} — ${meeting.date}`) +
     para(`會議次數 / Meeting No.: ${meeting.number || ""}`) +
-    para(`English meeting title: ${meeting.titleEn || "Weekly Meeting"}`) +
-    `<w:tbl><w:tblPr><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map((k) => `<w:${k} w:val="single" w:sz="4"/>`).join("")}</w:tblBorders></w:tblPr>${row(["項次 / Item", "議題 / Topic", "內容 / Description", "備註 / Note", "負責人 / PiC"])}${meeting.entries.map((e, i) => row([i + 1, [field("topic", e), field("topicEn", e), field("category", e), field("categoryEn", e)].join("\n"), [field("summary", e), field("summaryEn", e), field("description", e), field("descriptionEn", e)].join("\n"), [block(markers.status, status[e.status]), field("note", e), field("noteEn", e), ...(e.sourceSlides?.length ? [`來源 / Source: ${e.sourceFile || ""} · Slides ${e.sourceSlides.join(", ")}`] : [])].join("\n"), [field("owner", e), field("ownerEn", e)].join("\n")])).join("")}</w:tbl><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>`;
+    para(`English meeting title: ${meeting.titleEn || ""}`) +
+    `<w:tbl><w:tblPr><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map((k) => `<w:${k} w:val="single" w:sz="4"/>`).join("")}</w:tblBorders></w:tblPr>${row(["項次 / Item", "議題 / Topic", "內容 / Description", "備註 / Note", "負責人 / PiC"])}${meeting.entries.map((e, i) => row([i + 1, [field("topic", e), field("topicEn", e), field("category", e), field("categoryEn", e)].join("\n"), [field("summary", e), field("summaryEn", e), field("description", e), field("descriptionEn", e)].join("\n"), [block(markers.status, status[e.status] || ""), field("note", e), field("noteEn", e), ...(e.sourceSlides?.length ? [`來源 / Source: ${e.sourceFile || ""} · Slides ${e.sourceSlides.join(", ")}`] : [])].join("\n"), [field("owner", e), field("ownerEn", e)].join("\n")])).join("")}</w:tbl><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>`;
   return zipSync({
     "[Content_Types].xml": strToU8(
       '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',

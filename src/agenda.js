@@ -73,7 +73,7 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
       const desc = header.findIndex((s) => /辦理內容|description/.test(s)),
         topic = header.findIndex((s) => /議題|topic|執行工作及待辦/.test(s)),
         owner = header.findIndex((s) =>
-          /actionowner|requiredby|pic|負責人|後續待辦/.test(s),
+          /actionowner|requiredby|負責人|^pic$|^owner$/.test(s),
         ),
         status = header.findIndex((s) => /status|狀態/.test(s)),
         item = header.findIndex((s) => /^(項次|item|no\.?)/.test(s));
@@ -85,8 +85,9 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           body = splitLanguages(text),
           responsible = splitLanguages(row[owner] || ""),
           rawStatus = row[status] || "";
-        const closed = /closed|關閉|merged|合併/i.test(rawStatus),
-          blocked = /pending|await|待協調/i.test(rawStatus);
+        const closed = /\bclosed\b|關閉/i.test(rawStatus),
+          blocked = /pending|await|待協調/i.test(rawStatus),
+          open = /\bopen\b|\bongoing\b|進行中/i.test(rawStatus);
         drafts.push({
           topic: shortTitle(title.zh, "zh") || "",
           topicEn: shortTitle(title.en, "en") || "",
@@ -98,16 +99,16 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           noteEn: "",
           owner: responsible.zh,
           ownerEn: responsible.en,
-          category: category.zh || "議題",
-          categoryEn: category.en || "Agenda",
-          status: closed ? "closed" : blocked ? "blocked" : "open",
+          category: category.zh,
+          categoryEn: category.en,
+          status: closed ? "closed" : blocked ? "blocked" : open ? "open" : "",
           sourceText: body.zh,
           sourceTextEn: body.en,
           sourceSlides: [slide.number],
           sourcePresentationId: presentationId,
           sourceFile: fileName,
           sourceItem: item >= 0 ? row[item] || "" : "",
-          recommended: !slide.hidden && !slide.annex && !closed,
+          recommended: !slide.hidden && !slide.annex,
           hidden: !!slide.hidden,
           annex: !!slide.annex,
           confidence: desc >= 0 ? "table" : "review",
@@ -130,9 +131,9 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
         noteEn: "",
         owner: "",
         ownerEn: "",
-        category: category.zh || "其他議題",
-        categoryEn: category.en || "Other topics",
-        status: "open",
+        category: category.zh,
+        categoryEn: category.en,
+        status: "",
         sourceText: body.zh,
         sourceTextEn: body.en,
         sourceSlides: [slide.number],
@@ -167,33 +168,7 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           last.sourceTextEn &&
           d.sourceText &&
           !d.sourceTextEn));
-    const sameTitle =
-      last &&
-      ((d.topic && normalize(d.topic) === normalize(last.topic)) ||
-        (d.topicEn && normalize(d.topicEn) === normalize(last.topicEn)));
-    const sharedTerms =
-      last &&
-      [
-        ...(last.topic + " " + last.topicEn).matchAll(
-          /\b[A-Z][A-Z0-9-]{2,}\b/g,
-        ),
-      ].some((t) => (d.topic + " " + d.topicEn).includes(t[0]));
-    const chartPair =
-      last &&
-      complementary &&
-      !last.sourceItem &&
-      !d.sourceItem &&
-      last.confidence === "review" &&
-      d.confidence === "review" &&
-      sharedTerms &&
-      last.category === d.category &&
-      last.hidden === d.hidden &&
-      d.sourceSlides[0] === last.sourceSlides.at(-1) + 1;
-    if (
-      (sameItem && complementary) ||
-      chartPair ||
-      (sameTitle && last?.category === d.category && last?.hidden === d.hidden)
-    ) {
+    if (sameItem && complementary && (last.category || last.categoryEn)) {
       for (const k of ["sourceText", "sourceTextEn"])
         last[k] = [...new Set([last[k], d[k]].filter(Boolean))].join("\n");
       last.summary = summarize(last.sourceText);
@@ -204,7 +179,7 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
         ...new Set([...last.sourceSlides, ...d.sourceSlides]),
       ];
       if (last.status !== d.status) {
-        last.status = "open";
+        last.status = "";
         last.confidence = "review";
       }
       last.recommended = last.recommended || d.recommended;
