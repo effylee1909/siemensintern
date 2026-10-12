@@ -1,5 +1,11 @@
 import "./style.css";
 import {
+  readWorkspace,
+  saveWorkspace,
+  plainBackup,
+  readPlainBackup,
+} from "./storage.js";
+import {
   prepareAgenda,
   applyPreparedAgenda,
   presentationMetadata,
@@ -11,7 +17,6 @@ import {
   uid,
   nextMeeting,
   previousEntry,
-  encryptBackup,
   decryptBackup,
   meetingNumber,
   base64,
@@ -55,6 +60,43 @@ let state = blankWorkspace(),
   slideIndex = 0,
   dirty = false,
   isDemo = false;
+let revision = 0,
+  generation = 0,
+  saveTimer,
+  saveQueue = Promise.resolve(),
+  storageReady = true,
+  saveError = "";
+const saveLabel = () =>
+  saveError
+    ? "未儲存 · 請下載備份"
+    : dirty
+      ? "儲存中…"
+      : revision
+        ? "已儲存在此瀏覽器"
+        : "自動儲存已啟用";
+function scheduleSave() {
+  generation++;
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveQueue = saveQueue
+      .catch(() => {})
+      .then(async () => {
+        if (!storageReady) return;
+        const stamp = generation,
+          snapshot = structuredClone(state);
+        try {
+          revision = await saveWorkspace(snapshot, revision, isDemo, selected);
+          if (generation === stamp) dirty = false;
+          saveError = "";
+        } catch (e) {
+          saveError = e.message;
+          toast(e.message);
+        }
+        if ($("#save-state")) $("#save-state").textContent = saveLabel();
+      });
+  }, 250);
+}
 const statuses = {
   "": "未填寫 / Not specified",
   open: "進行中 / Open",
@@ -63,8 +105,8 @@ const statuses = {
 };
 const current = () => state.meetings.find((m) => m.id === selected);
 function change() {
-  dirty = true;
-  $("#save-state").textContent = "尚未下載備份 · 僅在此分頁";
+  scheduleSave();
+  if ($("#save-state")) $("#save-state").textContent = saveLabel();
 }
 function download(data, name, type) {
   const u = URL.createObjectURL(new Blob([data], { type }));
@@ -114,7 +156,7 @@ function render() {
       .join(
         "",
       )}</nav><div class="meeting-actions"><button class="new-meeting secondary">＋ 建立下次會議</button><button id="add-history" class="secondary">＋ 新增歷史／其他會議</button><button id="import-history" class="text-button">↑ 批次上傳歷次 PPT</button></div><div class="sidebar-bottom"><div class="local-label"><span class="dot"></span> 本機處理模式</div><p>檔案在瀏覽器中解析。<br>不呼叫雲端 AI 或外部服務。</p><button id="privacy" class="text-button">資料保護與使用說明 ↗</button></div></aside>
-<main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${dirty ? "尚未下載備份 · 僅在此分頁" : "資料僅在此分頁"}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 加密備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title || "尚未設定會議 / Meeting not set")} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>本機暫存模式</strong> · 重新整理或關閉前，請下載加密備份。"}<small>Word 匯出為未加密文件，請只存放於公司核准的位置。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button>${!dirty && !isDemo && !m.entries.length && !(m.presentations || []).length ? '<button id="load-demo" class="text-button">觀看示範 / View demo</button>' : ""}</div>
+<main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${saveLabel()}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 下載備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title || "尚未設定會議 / Meeting not set")} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>自動儲存於此瀏覽器</strong> · 同一瀏覽器再次開啟即可接續，不需密碼。"}<small>紀錄與備份均未加密；共用此瀏覽器的人可以讀取。資料不會上傳 GitHub。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button>${!dirty && !isDemo && !m.entries.length && !(m.presentations || []).length ? '<button id="load-demo" class="text-button">觀看示範 / View demo</button>' : ""}</div>
 <div class="stats">${[
       ["本次議題", m.entries.length, "all"],
       ["狀態未填", m.entries.filter((e) => e.status === "").length, ""],
@@ -136,7 +178,7 @@ function render() {
       )
       .join("")}</div>
 <div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
-<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與加密備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題">${
+<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題">${
       list.length
         ? list
             .map((x, i) => {
@@ -157,9 +199,9 @@ function render() {
             )
             .join(
               "",
-            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}${bilingualInputs(e, "category", "階段與分類 / Category")}<section class="agenda-summary"><div class="panel-heading"><span>簡報重點 / Slide key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key points", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div><button id="go-source" class="text-button">查看簡報來源頁 / View source slide</button></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文 / Chinese</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯即更新分頁內資料，請定期備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
+            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}${bilingualInputs(e, "category", "階段與分類 / Category")}<section class="agenda-summary"><div class="panel-heading"><span>簡報重點 / Slide key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key points", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div><button id="go-source" class="text-button">查看簡報來源頁 / View source slide</button></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文 / Chinese</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
-    }</section></div>${slides.length ? `<section class="slide-panel"><div class="list-heading"><h2>簡報文字參考 <span>${slides.length} 頁</span></h2><div><button id="slide-prev" class="secondary" ${slideIndex === 0 ? "disabled" : ""}>←</button> <span>${slideIndex + 1} / ${slides.length}</span> <button id="slide-next" class="secondary" ${slideIndex === slides.length - 1 ? "disabled" : ""}>→</button> </div></div><p class="subtitle">僅擷取文字，圖片、圖表與版面請使用原始 PowerPoint 確認。簡報原檔與文字參考會一起納入加密備份。</p><pre>${esc(slides[slideIndex].text || "本頁沒有可擷取的文字")}</pre></section>` : ""}<footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
+    }</section></div>${slides.length ? `<section class="slide-panel"><div class="list-heading"><h2>簡報文字參考 <span>${slides.length} 頁</span></h2><div><button id="slide-prev" class="secondary" ${slideIndex === 0 ? "disabled" : ""}>←</button> <span>${slideIndex + 1} / ${slides.length}</span> <button id="slide-next" class="secondary" ${slideIndex === slides.length - 1 ? "disabled" : ""}>→</button> </div></div><p class="subtitle">僅擷取文字，圖片、圖表與版面請使用原始 PowerPoint 確認。簡報原檔與文字參考會一起納入一般備份。</p><pre>${esc(slides[slideIndex].text || "本頁沒有可擷取的文字")}</pre></section>` : ""}<footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
   bind();
   const nav = $(".sidebar nav"),
     active = nav?.querySelector(".meeting.active");
@@ -407,7 +449,7 @@ function bind() {
   $("#export").onclick = () =>
     modal(
       "匯出 Word 紀錄",
-      `<p>匯出包含本次所有議題，使用中英文 Item / Topic / Description / Note / PiC 表格；簡報重點與會議討論分開呈現。<br>Export bilingual key points, discussion, notes and owners.</p><p class="warning">英文未填寫的欄位會標示「未提供」，不會自動翻譯。<br>Word 檔案未加密。請存放於公司核准的資料夾，並遵守分享權限。</p>${error}<button type="submit" class="primary">下載 Word</button>`,
+      `<p>匯出包含本次所有議題，使用中英文 Item / Topic / Description / Note / PiC 表格；簡報重點與會議討論分開呈現。<br>Export bilingual key points, discussion, notes and owners.</p><p class="warning">英文未填寫的欄位會保持空白，不會自動翻譯。<br>Word 檔案未加密。請存放於公司核准的資料夾，並遵守分享權限。</p>${error}<button type="submit" class="primary">下載 Word</button>`,
       () => {
         download(
           exportDocx(current()),
@@ -417,43 +459,43 @@ function bind() {
         $("#dialog").close();
       },
     );
-  $("#backup").onclick = () =>
-    modal(
-      "下載加密備份",
-      `<p>備份包含所有會議、議題歷史及上傳的簡報原檔。使用 AES-256-GCM 加密，密碼不會儲存；忘記密碼無法復原。</p><label class="field">備份密碼<input name="password" type="password" minlength="12" required autocomplete="new-password" placeholder="至少 12 個字元"></label><label class="field">再次輸入密碼<input name="confirm" type="password" minlength="12" required autocomplete="new-password"></label>${error}<button type="submit" class="primary">加密並下載</button>`,
-      async (f) => {
-        if (f.get("password") !== f.get("confirm"))
-          throw Error("兩次密碼不一致");
-        const data = await encryptBackup(state, f.get("password"));
-        download(
-          data,
-          `週會備份-${new Date().toISOString().slice(0, 10)}.meeting`,
-          "application/octet-stream",
-        );
-        dirty = false;
-        $("#dialog").close();
-        render();
-        toast("已產生加密備份，請確認檔案已下載完成");
-      },
+  $("#backup").onclick = () => {
+    download(
+      plainBackup(state),
+      `週會備份-${new Date().toLocaleDateString("sv-SE")}.json`,
+      "application/json",
     );
+    toast("已下載包含全部會議的一般備份，不需要密碼");
+  };
   $("#restore").onclick = () =>
-    chooseFile(".meeting", async (file) => {
+    chooseFile(".json,.meeting", async (file) => {
       if (file.size > 100 * 1024 * 1024) throw Error("備份上限為 100 MB");
       const text = await file.text();
+      let content;
+      try {
+        content = JSON.parse(text);
+      } catch {
+        throw Error("備份格式不正確");
+      }
+      const legacy = content.format === "meeting-desk-encrypted";
+      let plain;
+      if (!legacy) plain = readPlainBackup(text);
       modal(
-        "開啟加密備份",
-        `<p>開啟後會取代目前工作區，請先下載現有資料的備份。</p><label class="field">備份密碼<input name="password" type="password" required autocomplete="current-password"></label><label class="check"><input type="checkbox" required> 我確認取代目前工作區</label>${error}<button type="submit" class="primary">解密並開啟</button>`,
+        legacy ? "匯入舊加密備份" : "開啟一般備份",
+        `<p>會取代目前工作區。需要保留的資料請先下載備份。</p>${legacy ? '<p>只有舊加密備份需要原密碼；匯入後將以一般方式自動儲存。</p><label class="field">舊備份密碼<input name="password" type="password" required autocomplete="current-password"></label>' : ""}<label class="check"><input type="checkbox" required> 我確認取代目前工作區</label>${error}<button type="submit" class="primary">${legacy ? "解密並開啟" : "開啟備份 / Open backup"}</button>`,
         async (f) => {
-          const loaded = await decryptBackup(text, f.get("password"));
+          const loaded = legacy
+            ? await decryptBackup(text, f.get("password"))
+            : plain;
           if (!loaded.meetings.length) throw Error("備份沒有會議");
           state = sortMeetings(loaded);
           selected = state.meetings.at(-1).id;
           entryId = null;
           presentationId = null;
           isDemo = false;
-          dirty = false;
+          change();
           render();
-          toast("加密備份已還原");
+          toast("備份已開啟，將自動儲存在此瀏覽器");
         },
       );
     });
@@ -480,14 +522,14 @@ function bind() {
         entryId = null;
         presentationId = null;
         isDemo = false;
-        dirty = true;
+        change();
         render();
       },
     );
   $("#privacy").onclick = () =>
     modal(
       "資料保護與使用說明",
-      `<div class="privacy-copy"><h3>本機處理，主動備份</h3><p>Word、PowerPoint 與紀錄只在瀏覽器記憶體處理。不使用分析追蹤、外部 AI、字型服務、localStorage 或 IndexedDB。關閉或重新整理後資料不會保留，請定期下載加密備份。</p><h3>加密仍需要安全的裝置</h3><p>備份使用 PBKDF2-SHA-256（310,000 次）與 AES-256-GCM。使用獨立長密碼，並透過公司核准管道保存。畫面上與記憶體中的資料並未加密；共用電腦、瀏覽器擴充功能、惡意程式與螢幕截圖仍可能洩漏內容。</p><h3>正式上線前</h3><p>先取得公司資訊安全核准，使用公司管理的裝置與私有網路。若需多人協作，必須加入公司 SSO、角色權限、HTTPS、伺服器存取控制、操作稽核、備份與資料保留政策。這個本機版本沒有登入或多人權限，不應直接作為對外開放的共享系統。</p><h3>匯入與匯出</h3><p>匯入只讀取指定欄位，不執行巨集；議題連結需由你確認。Word 匯出是未加密文件。清除分頁不能抹除已下載檔案或原始附件。PowerPoint 整理採本機表格解析與摘錄式摘要，不會產生翻譯。來源缺少某語言時需人工補充；隱藏頁、附錄及關閉項目預設不勾選。圖片與圖表不做 OCR，匯入前請確認預覽及原文。</p><h3>後續擴充</h3><p>保留對方會議紀錄比對的設計方向：先做格式對應，再以議題連結呈現差異，經人工確認後才合併。目前尚未實作此功能。</p></div>`,
+      `<div class="privacy-copy"><h3>自動儲存與一般備份</h3><p>會議紀錄與附件會以未加密方式保存在此瀏覽器的 IndexedDB。同一網站、同一瀏覽器再次開啟會自動載入；換電腦或瀏覽器需要匯入 JSON 備份。清除瀏覽器資料、無痕模式或儲存空間不足可能造成資料遺失，請定期下載備份。</p><h3>本機資料保護</h3><p>不使用外部 AI、追蹤或檔案上傳服務，資料不會寫入 GitHub。共用同一瀏覽器的人、具有權限的擴充功能或受入侵裝置可能讀取紀錄。網站目前沒有登入、雲端同步或存取權限。</p><h3>清除與分享</h3><p>清除工作區會以空白資料取代本機紀錄；不會刪除已下載的備份或原始檔案。JSON、Word、原始 PPT 均未加密，請使用公司核准的儲存與分享方式。舊加密備份可用原密碼匯入；不再產生新的加密備份。</p><h3>PPT 整理</h3><p>只做本機文字、表格解析與摘錄，不自動翻譯或執行巨集，圖片與圖表需核對原檔。正式多人使用需要另設登入、權限與公司核准的資料儲存。</p></div>`,
     );
   $("#history")?.addEventListener("click", () => {
     const history = state.meetings
@@ -613,7 +655,7 @@ async function uploadPpt(
   slideIndex = 0;
   change();
   render();
-  toast("簡報已加入本次會議，請下載加密備份保存");
+  toast("簡報已加入本次會議，請下載一般備份保存");
   if (prepare) preparePpt(p);
 }
 function bilingualInputs(e, key, label, textarea = false) {
@@ -879,4 +921,23 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
-render();
+async function initialize() {
+  try {
+    const saved = await readWorkspace();
+    if (saved) {
+      state = sortMeetings(saved.state);
+      revision = saved.revision;
+      isDemo = saved.isDemo;
+      selected = state.meetings.some((m) => m.id === saved.selectedId)
+        ? saved.selectedId
+        : state.meetings.at(-1).id;
+    }
+  } catch (e) {
+    storageReady = false;
+    saveError = e.message;
+  }
+
+  render();
+  if (saveError) toast(saveError);
+}
+initialize();

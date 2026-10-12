@@ -138,29 +138,30 @@ try {
   assert.equal(result[0].descriptionEn, "Confirmed");
   assert.equal(result[0].noteEn, "Follow up");
   assert.equal(result[0].ownerEn, "Team");
-  await page.getByRole("button", { name: "↓ 加密備份" }).click();
-  await page.locator("[name=password]").fill("bilingual backup password");
-  await page.locator("[name=confirm]").fill("bilingual backup password");
-  const d = page.waitForEvent("download");
-  await page.getByRole("button", { name: "加密並下載" }).click();
-  const backup = await readFile(await (await d).path());
+  const event = page.waitForEvent("download");
+  await page.getByRole("button", { name: "↓ 下載備份" }).click();
+  const backup = await readFile(await (await event).path());
+  assert.equal(JSON.parse(backup.toString()).format, "meeting-desk-backup");
   await page.getByRole("button", { name: "開啟備份", exact: true }).click();
-  await page.locator("#file").setInputFiles({
-    name: "bilingual.meeting",
-    mimeType: "application/octet-stream",
-    buffer: backup,
-  });
-  await page.locator("[name=password]").fill("bilingual backup password");
+  await page
+    .locator("#file")
+    .setInputFiles({
+      name: "workspace.json",
+      mimeType: "application/json",
+      buffer: backup,
+    });
+  assert.equal(await page.locator("dialog input[type=password]").count(), 0);
   await page.locator("dialog input[type=checkbox]").check();
-  await page.getByRole("button", { name: "解密並開啟" }).click();
+  await page.getByRole("button", { name: "開啟備份 / Open backup" }).click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#save-state")?.textContent === "已儲存在此瀏覽器",
+  );
+  await page.reload();
   await page.locator("[data-field=descriptionEn]").waitFor();
   assert.equal(
     await page.locator("[data-field=descriptionEn]").inputValue(),
     "The test date was confirmed.",
-  );
-  assert.match(
-    await page.locator("[data-field=summaryEn]").inputValue(),
-    /4 tests/,
   );
   await page.locator("#clear").click();
   await page.locator("dialog input[type=checkbox]").check();

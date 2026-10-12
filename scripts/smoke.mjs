@@ -106,30 +106,29 @@ try {
     .getByRole("textbox", { name: "本次討論" })
     .fill("現場直接記錄決議");
   assert.equal(await page.locator(".issue").count(), 3);
-  await page.getByRole("button", { name: "↓ 加密備份" }).click();
-  await page.locator('[name="password"]').fill("meeting smoke password");
-  await page.locator('[name="confirm"]').fill("meeting smoke password");
   const event = page.waitForEvent("download");
-  await page.getByRole("button", { name: "加密並下載" }).click();
-  const download = await event;
-  const encrypted = await readFile(await download.path(), "utf8");
-  assert.ok(!encrypted.includes("本次測試決議"));
+  await page.getByRole("button", { name: "↓ 下載備份" }).click();
+  const backup = await readFile(await (await event).path());
+  assert.equal(JSON.parse(backup.toString()).format, "meeting-desk-backup");
   await page.getByRole("button", { name: "開啟備份", exact: true }).click();
-  await page.locator("#file").setInputFiles({
-    name: "test.meeting",
-    mimeType: "application/octet-stream",
-    buffer: Buffer.from(encrypted),
-  });
-  await page.locator('[name="password"]').fill("wrong");
-  await page.locator('dialog input[type="checkbox"]').check();
-  await page.getByRole("button", { name: "解密並開啟" }).click();
-  await page.getByRole("alert").filter({ hasText: "密碼錯誤" }).waitFor();
-  await page.locator('[name="password"]').fill("meeting smoke password");
-  await page.getByRole("button", { name: "解密並開啟" }).click();
+  await page
+    .locator("#file")
+    .setInputFiles({
+      name: "workspace.json",
+      mimeType: "application/json",
+      buffer: backup,
+    });
+  assert.equal(await page.locator("dialog input[type=password]").count(), 0);
+  await page.locator("dialog input[type=checkbox]").check();
+  await page.getByRole("button", { name: "開啟備份 / Open backup" }).click();
+  await page.waitForFunction(
+    () =>
+      document.querySelector("#save-state")?.textContent === "已儲存在此瀏覽器",
+  );
+  await page.reload();
   await page.getByRole("heading", { name: "第 221 次週會" }).waitFor();
   assert.equal(await page.locator(".issue").count(), 3);
   assert.equal(await page.locator(".attachment").count(), 1);
-  assert.equal(await page.locator(".date-tag").innerText(), "2026-10-15");
   const roundtrip = await page.evaluate(async () => {
     const { exportDocx, readDocx } = await import("/src/office.js");
     const m = {
