@@ -103,9 +103,17 @@ a {
   font-weight: 600;
   letter-spacing: 1px;
   color: #84919d;
-  margin-bottom: 12px;
+  margin-top: 20px;
+  margin-bottom: 28px;
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+}
+.nav-title small {
+  display: block;
+  font-size: inherit;
+  letter-spacing: 0;
+  margin-top: 4px;
 }
 .nav-title span {
   background: #edf1f4;
