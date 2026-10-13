@@ -1154,7 +1154,7 @@ dialog:has(.agenda-preview) {
 .meeting-actions {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 28px;
 }
 .meeting-actions .secondary {
   width: 100%;
