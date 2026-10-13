@@ -153,7 +153,7 @@ function render() {
   const previous = e && previousEntry(state, m.id, e.issueId);
   const index = state.meetings.findIndex((x) => x.id === m.id);
   $("#app").innerHTML =
-    `<aside class="sidebar"><a class="brand" href="#"><span class="brand-icon">週</span><span>週進度會議<small>Weekly Meeting</small></span></a><div class="workspace-label">個人工作空間 <span class="dot"></span></div><div class="nav-title">會議紀錄 <span>${state.meetings.length}</span></div><nav aria-label="會議列表 / Meeting list" tabindex="0">${[
+    `<aside class="sidebar"><a class="brand" href="#"><span class="brand-icon">週</span><span>週進度會議<small>Weekly Meeting</small></span></a><div class="nav-title">會議紀錄 <span>${state.meetings.length}</span></div><nav aria-label="會議列表 / Meeting list" tabindex="0">${[
       ...state.meetings,
     ]
       .reverse()
