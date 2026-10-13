@@ -1347,3 +1347,6 @@ dialog p {
 .editor-top:has(.topic-actions) { flex-wrap: wrap; gap: 12px; }
 .topic-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .topic-actions button:disabled { opacity: .45; cursor: default; }
+
+footer .page-privacy { margin-left: auto; text-align: right; letter-spacing: 0; }
+@media (max-width: 760px) { footer { flex-wrap: wrap; } footer .page-privacy { flex-basis: 100%; } }
