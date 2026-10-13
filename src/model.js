@@ -114,7 +114,6 @@ export function validateState(s) {
   )
     throw Error("備份格式不支援");
   const ids = new Set();
-  let total = 0;
   for (const m of s.meetings) {
     if (
       typeof m.id !== "string" ||
@@ -147,7 +146,7 @@ export function validateState(s) {
           !p.name.toLowerCase().endsWith(".pptx") ||
           typeof p.data !== "string" ||
           (p.data !== "" && !/^UEs[A-Za-z0-9+/]*={0,2}$/.test(p.data)) ||
-          p.data.length > Math.ceil((25 * 1024 * 1024) / 3) * 4 ||
+          p.data.length > Math.ceil((100 * 1024 * 1024) / 3) * 4 ||
           !Array.isArray(p.slides) ||
           p.slides.length > 500 ||
           p.slides.some(
@@ -189,12 +188,21 @@ export function validateState(s) {
           )
             throw Error("簡報表格格式不正確");
         }
+        if (
+          p.blobId !== undefined &&
+          (typeof p.blobId !== "string" || !p.blobId)
+        )
+          throw Error("原檔參照格式不正確");
+        if (
+          p.size !== undefined &&
+          (!Number.isSafeInteger(p.size) ||
+            p.size < 0 ||
+            p.size > 100 * 1024 * 1024)
+        )
+          throw Error("原檔大小格式不正確");
         ps.add(p.id);
-        total += p.data.length;
       }
     }
-    if (total > Math.ceil((40 * 1024 * 1024) / 3) * 4)
-      throw Error("簡報附件總大小超過 40 MB");
     ids.add(m.id);
     const issues = new Set();
     for (const e of m.entries) {

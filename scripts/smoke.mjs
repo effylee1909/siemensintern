@@ -82,12 +82,7 @@ try {
     buffer: Buffer.from(pptBytes),
   });
   await page.locator(".attachment").waitFor();
-  assert.match(
-    await page.locator(".slide-panel pre").innerText(),
-    /本次簡報測試/,
-  );
-  await page.locator("#slide-next").click();
-  assert.equal(await page.locator(".slide-panel pre").innerText(), "第二頁");
+  assert.equal(await page.locator(".slide-panel").count(), 0);
   await page.locator("[data-meeting]").last().click();
   assert.equal(await page.locator(".attachment").count(), 0);
   await page.locator("[data-meeting]").first().click();
@@ -109,18 +104,21 @@ try {
   const event = page.waitForEvent("download");
   await page.getByRole("button", { name: "↓ 下載備份" }).click();
   const backup = await readFile(await (await event).path());
-  assert.equal(JSON.parse(backup.toString()).format, "meeting-desk-backup");
+  const { unzipSync, strFromU8 } = await import("fflate");
+  assert.equal(
+    JSON.parse(strFromU8(unzipSync(backup)["workspace.json"])).format,
+    "meeting-desk-backup",
+  );
   await page.getByRole("button", { name: "開啟備份", exact: true }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "workspace.json",
-      mimeType: "application/json",
-      buffer: backup,
-    });
+  await page.locator("#file").setInputFiles({
+    name: "workspace.zip",
+    mimeType: "application/zip",
+    buffer: backup,
+  });
   assert.equal(await page.locator("dialog input[type=password]").count(), 0);
   await page.locator("dialog input[type=checkbox]").check();
   await page.getByRole("button", { name: "開啟備份 / Open backup" }).click();
+  await page.waitForFunction(() => !document.querySelector("dialog[open]"));
   await page.waitForFunction(
     () =>
       document.querySelector("#save-state")?.textContent === "已儲存在此瀏覽器",

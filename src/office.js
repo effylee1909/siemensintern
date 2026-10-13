@@ -15,7 +15,7 @@ function texts(el, ns, tag) {
     .join("");
 }
 async function archive(file) {
-  if (file.size > 25 * 1024 * 1024) throw Error("檔案上限為 25 MB");
+  if (file.size > 100 * 1024 * 1024) throw Error("單一檔案上限為 100 MB");
   let total = 0,
     count = 0;
   return unzipSync(new Uint8Array(await file.arrayBuffer()), {

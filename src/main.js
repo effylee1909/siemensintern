@@ -1,8 +1,11 @@
 import "./style.css";
+import { backupArchive, restoreArchive } from "./archive.js";
 import {
   readWorkspace,
   saveWorkspace,
-  plainBackup,
+  putAttachment,
+  getAttachment,
+  migrateAttachments,
   readPlainBackup,
 } from "./storage.js";
 import {
@@ -19,7 +22,6 @@ import {
   previousEntry,
   decryptBackup,
   meetingNumber,
-  base64,
   bytes,
 } from "./model.js";
 import { readDocx, readPptx, exportDocx } from "./office.js";
@@ -183,7 +185,7 @@ function render() {
       )
       .join("")}</div>
 <div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
-<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題"><div class="issue-scroll" role="region" aria-label="議題列表 / Topic list" tabindex="0" data-scroll-key="${esc(issueScrollKey)}">${
+<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><div><button id="storage-info" class="text-button">儲存空間 / Storage</button> <button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data || p.blobId ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題"><div class="issue-scroll" role="region" aria-label="議題列表 / Topic list" tabindex="0" data-scroll-key="${esc(issueScrollKey)}">${
       list.length
         ? list
             .map((x, i) => {
@@ -204,9 +206,9 @@ function render() {
             )
             .join(
               "",
-            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}${bilingualInputs(e, "category", "階段與分類 / Category")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key points", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div><button id="go-source" class="text-button">查看簡報來源頁 / View source slide</button></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文 / Chinese</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
+            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}${bilingualInputs(e, "category", "階段與分類 / Category")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key points", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文 / Chinese</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
-    }</section></div>${slides.length ? `<section class="slide-panel"><div class="list-heading"><h2>簡報文字參考 <span>${slides.length} 頁</span></h2><div><button id="slide-prev" class="secondary" ${slideIndex === 0 ? "disabled" : ""}>←</button> <span>${slideIndex + 1} / ${slides.length}</span> <button id="slide-next" class="secondary" ${slideIndex === slides.length - 1 ? "disabled" : ""}>→</button> </div></div><p class="subtitle">僅擷取文字，圖片、圖表與版面請使用原始 PowerPoint 確認。簡報原檔與文字參考會一起納入一般備份。</p><pre>${esc(slides[slideIndex].text || "本頁沒有可擷取的文字")}</pre></section>` : ""}<footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
+    }</section></div><footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
   bind();
   const issuePane = $(".issue-scroll");
   if (issuePane)
@@ -275,11 +277,36 @@ function chooseFile(accept, handler) {
   f.click();
 }
 function bind() {
+  $("#storage-info").onclick = async () => {
+    let info = {};
+    try {
+      info = (await navigator.storage?.estimate?.()) || {};
+    } catch {}
+    const mb = (n) =>
+      Number.isFinite(n)
+        ? (n / 1024 / 1024).toFixed(0) + " MB"
+        : "瀏覽器未提供";
+    modal(
+      "儲存空間 / Storage",
+      `<p>單一檔案上限 100 MB；沒有 40 MB 的累積限制。</p><p>此網站已使用約 ${mb(info.usage)}；瀏覽器可用配額約 ${mb(info.quota)}。估計值不是可保證的剩餘容量。</p><p>檔案只存在這部裝置。瀏覽器清除／回收資料或磁碟滿時可能遺失，請定期下載包含原檔的完整 ZIP 備份。</p><button type="button" id="persist-storage" class="primary">嘗試啟用持續保存 / Keep local data</button><p id="persist-result" role="status"></p>`,
+    );
+    $("#persist-storage").onclick = async () => {
+      try {
+        const ok = await navigator.storage?.persist?.();
+        $("#persist-result").textContent = ok
+          ? "已允許持續保存（清除網站資料仍會刪除）。"
+          : "瀏覽器未允許持續保存；請定期備份。";
+      } catch {
+        $("#persist-result").textContent = "無法變更，仍可繼續儲存及下載備份。";
+      }
+    };
+  };
+
   $("#add-history").onclick = historicalMeeting;
   $("#import-history").onclick = () =>
     modal(
       "批次上傳歷次 PPT / Import historical slides",
-      `<p>依封面的次數與日期建立／選取會議。之後逐場確認議題整理。</p><label class="check"><input name="textOnly" type="checkbox"> 僅保存文字與表格，原始 PPT 留在自己的公司資料夾 / Save extracted text only</label><p>勾選後不保留圖片與可下載的原始 PPT，可減少備份大小並避免原檔合計 40 MB 上限；完整原檔請自行保留。單一上傳檔仍限 25 MB。</p>${error}<button type="submit" class="primary">開始選取 PPT / Choose files</button>`,
+      `<p>依封面的次數與日期建立／選取會議。之後逐場確認議題整理。</p><label class="check"><input name="textOnly" type="checkbox"> 僅保存文字與表格，原始 PPT 留在自己的公司資料夾 / Save extracted text only</label><p>勾選後不保留圖片與可下載的原始 PPT，可減少備份大小與本機儲存用量；完整原檔請自行保留。單一上傳檔上限為 100 MB。</p>${error}<button type="submit" class="primary">開始選取 PPT / Choose files</button>`,
       (f) => {
         const textOnly = !!f.get("textOnly");
         $("#dialog").close();
@@ -307,20 +334,6 @@ function bind() {
             current().presentations.find((p) => p.id === b.dataset.preparePpt),
           )),
     );
-  $("#go-source")?.addEventListener("click", () => {
-    const e = current().entries.find((e) => e.issueId === entryId);
-    if (
-      !(current().presentations || []).some(
-        (p) => p.id === e.sourcePresentationId,
-      )
-    )
-      return toast("來源附件已移除 / Source attachment removed");
-    presentationId = e.sourcePresentationId;
-    slideIndex = e.sourceSlides[0] - 1;
-    render();
-    $(".slide-panel")?.scrollIntoView({ behavior: "smooth" });
-  });
-
   $("#edit-meeting").onclick = editMeeting;
   document.querySelectorAll("[data-presentation]").forEach(
     (b) =>
@@ -332,15 +345,19 @@ function bind() {
   );
   document.querySelectorAll("[data-download-ppt]").forEach(
     (b) =>
-      (b.onclick = () => {
+      (b.onclick = async () => {
         const p = current().presentations.find(
           (p) => p.id === b.dataset.downloadPpt,
         );
-        download(
-          bytes(p.data),
-          p.name,
-          "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        );
+        try {
+          download(
+            await getAttachment(p),
+            p.name,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          );
+        } catch (e) {
+          toast(e.message);
+        }
       }),
   );
   document.querySelectorAll("[data-remove-ppt]").forEach(
@@ -470,34 +487,50 @@ function bind() {
         $("#dialog").close();
       },
     );
-  $("#backup").onclick = () => {
-    download(
-      plainBackup(state),
-      `週會備份-${new Date().toLocaleDateString("sv-SE")}.json`,
-      "application/json",
-    );
-    toast("已下載包含全部會議的一般備份，不需要密碼");
+  $("#backup").onclick = async () => {
+    const button = $("#backup");
+    button.disabled = true;
+    button.textContent = "正在封裝備份…";
+    try {
+      const result = await backupArchive(state);
+      download(
+        result.data,
+        `週會備份-${new Date().toLocaleDateString("sv-SE")}.${result.name}`,
+        result.type,
+      );
+      toast("完整備份已下載，包含所有會議與保留的 PPT 原檔");
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "↓ 下載備份";
+    }
   };
   $("#restore").onclick = () =>
-    chooseFile(".json,.meeting", async (file) => {
-      if (file.size > 100 * 1024 * 1024) throw Error("備份上限為 100 MB");
-      const text = await file.text();
+    chooseFile(".json,.zip,.meeting", async (file) => {
+      if (file.size > 2 * 1024 * 1024 * 1024)
+        throw Error("單次備份匯入上限為 2 GB");
+      const zipped = file.name.toLowerCase().endsWith(".zip");
+      const text = zipped ? null : await file.text();
       let content;
       try {
-        content = JSON.parse(text);
+        content = zipped ? {} : JSON.parse(text);
       } catch {
         throw Error("備份格式不正確");
       }
       const legacy = content.format === "meeting-desk-encrypted";
       let plain;
-      if (!legacy) plain = readPlainBackup(text);
+      if (!legacy && !zipped) plain = readPlainBackup(text);
       modal(
         legacy ? "匯入舊加密備份" : "開啟一般備份",
         `<p>會取代目前工作區。需要保留的資料請先下載備份。</p>${legacy ? '<p>只有舊加密備份需要原密碼；匯入後將以一般方式自動儲存。</p><label class="field">舊備份密碼<input name="password" type="password" required autocomplete="current-password"></label>' : ""}<label class="check"><input type="checkbox" required> 我確認取代目前工作區</label>${error}<button type="submit" class="primary">${legacy ? "解密並開啟" : "開啟備份 / Open backup"}</button>`,
         async (f) => {
-          const loaded = legacy
-            ? await decryptBackup(text, f.get("password"))
-            : plain;
+          const loaded = zipped
+            ? await restoreArchive(file)
+            : legacy
+              ? await decryptBackup(text, f.get("password"))
+              : plain;
+          await migrateAttachments(loaded);
           if (!loaded.meetings.length) throw Error("備份沒有會議");
           state = sortMeetings(loaded);
           selected = state.meetings.at(-1).id;
@@ -540,7 +573,7 @@ function bind() {
   $("#privacy").onclick = () =>
     modal(
       "資料保護與使用說明",
-      `<div class="privacy-copy"><h3>自動儲存與一般備份</h3><p>會議紀錄與附件會以未加密方式保存在此瀏覽器的 IndexedDB。同一網站、同一瀏覽器再次開啟會自動載入；換電腦或瀏覽器需要匯入 JSON 備份。清除瀏覽器資料、無痕模式或儲存空間不足可能造成資料遺失，請定期下載備份。</p><h3>本機資料保護</h3><p>不使用外部 AI、追蹤或檔案上傳服務，資料不會寫入 GitHub。共用同一瀏覽器的人、具有權限的擴充功能或受入侵裝置可能讀取紀錄。網站目前沒有登入、雲端同步或存取權限。</p><h3>清除與分享</h3><p>清除工作區會以空白資料取代本機紀錄；不會刪除已下載的備份或原始檔案。JSON、Word、原始 PPT 均未加密，請使用公司核准的儲存與分享方式。舊加密備份可用原密碼匯入；不再產生新的加密備份。</p><h3>PPT 整理</h3><p>只做本機文字、表格解析與摘錄，不自動翻譯或執行巨集，圖片與圖表需核對原檔。正式多人使用需要另設登入、權限與公司核准的資料儲存。</p></div>`,
+      `<div class="privacy-copy"><h3>自動儲存與一般備份</h3><p>會議紀錄與附件會以未加密方式保存在此瀏覽器的 IndexedDB。同一網站、同一瀏覽器再次開啟會自動載入；換電腦或瀏覽器需要匯入完整 ZIP 或 JSON 備份。清除瀏覽器資料、無痕模式或儲存空間不足可能造成資料遺失，請定期下載備份。</p><h3>本機資料保護</h3><p>不使用外部 AI、追蹤或檔案上傳服務，資料不會寫入 GitHub。共用同一瀏覽器的人、具有權限的擴充功能或受入侵裝置可能讀取紀錄。網站目前沒有登入、雲端同步或存取權限。</p><h3>清除與分享</h3><p>清除工作區會以空白資料取代本機紀錄；不會刪除已下載的備份或原始檔案。JSON／ZIP、Word、原始 PPT 均未加密，請使用公司核准的儲存與分享方式。舊加密備份可用原密碼匯入；不再產生新的加密備份。</p><h3>PPT 整理</h3><p>只做本機文字、表格解析與摘錄，不自動翻譯或執行巨集，圖片與圖表需核對原檔。正式多人使用需要另設登入、權限與公司核准的資料儲存。</p></div>`,
     );
   $("#history")?.addEventListener("click", () => {
     const history = state.meetings
@@ -642,11 +675,6 @@ async function uploadPpt(
   const meeting = target;
   if (!file.name.toLowerCase().endsWith(".pptx"))
     throw Error("請先將舊版 .ppt 另存為 .pptx");
-  const total = state.meetings
-    .flatMap((m) => m.presentations || [])
-    .reduce((n, p) => n + ((p.data?.length || 0) * 3) / 4, 0);
-  if (retainOriginal && total + file.size > 40 * 1024 * 1024)
-    throw Error("所有會議簡報總大小上限為 40 MB，請先備份並移除不需要的附件");
   if ((meeting.presentations || []).length >= 20)
     throw Error("每場會議最多 20 份簡報");
   const slides = parsedSlides || (await readPptx(file));
@@ -655,9 +683,10 @@ async function uploadPpt(
   const p = {
     id: uid(),
     name: file.name,
-    data: retainOriginal
-      ? base64(new Uint8Array(await file.arrayBuffer()))
-      : "",
+    data: "",
+    ...(retainOriginal
+      ? { blobId: await putAttachment(file), size: file.size }
+      : {}),
     slides,
   };
   (meeting.presentations ??= []).push(p);
@@ -679,7 +708,7 @@ function bilingualInputs(e, key, label, textarea = false) {
 async function preparePpt(p) {
   if (p.slides.some((s) => s.tables === undefined)) {
     try {
-      p.slides = await readPptx(new File([bytes(p.data)], p.name));
+      p.slides = await readPptx(new File([await getAttachment(p)], p.name));
       change();
     } catch (e) {
       return toast(e.message);
@@ -909,7 +938,7 @@ async function importHistoricalPpts(files, textOnly = false) {
   render();
   modal(
     "歷次 PPT 上傳結果 / Import results",
-    `<p>附件已依封面次數分配到會議。每場會議的議題仍需按「整理成會議紀錄」確認，不會自動覆寫既有紀錄。</p><p>原檔合計上限 40 MB；未成功的檔案會列出原因。 / Original files: 40 MB total limit.</p><div class="import-list">${results.map((r) => `<article><h3>${esc(r.name)}</h3><p>${esc(r.text)}</p></article>`).join("")}</div>`,
+    `<p>附件已依封面次數分配到會議。每場會議的議題仍需按「整理成會議紀錄」確認，不會自動覆寫既有紀錄。</p><p>不限制原檔合計為 40 MB；可保存的總量依瀏覽器空間而定，未成功的檔案會列出原因。</p><div class="import-list">${results.map((r) => `<article><h3>${esc(r.name)}</h3><p>${esc(r.text)}</p></article>`).join("")}</div>`,
   );
 }
 function editMeeting() {
@@ -957,6 +986,13 @@ async function initialize() {
   }
 
   render();
+  if (storageReady) {
+    try {
+      if (await migrateAttachments(state)) change();
+    } catch (e) {
+      toast(e.message);
+    }
+  }
   if (saveError) toast(saveError);
 }
 initialize();
