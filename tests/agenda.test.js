@@ -199,3 +199,16 @@ test("English summary does not separate a day number from the month", () => {
   assert.match(s, /25\. June/);
   assert.match(s, /24\. Aug/);
 });
+
+test('narrative Topic cells and standalone pages use subject phrases, while concise names stay unchanged', () => {
+  assert.equal(extractTopic('請安排設備安裝進度確認，預計下週回覆。', 'zh', true), '設備安裝進度');
+  assert.equal(extractTopic('目前已提交系統整合測試報告(B版)，待審查。', 'zh', true), '系統整合測試報告');
+  assert.equal(extractTopic('The contractor has submitted the wayside concordance test procedure on 12 February.', 'en', true), 'wayside concordance test procedure');
+  assert.equal(extractTopic('Please arrange the joint site survey in the station.', 'en', true), 'joint site survey');
+  assert.equal(extractTopic('ATP/ATO 介面協調', 'zh', true), 'ATP/ATO 介面協調');
+  assert.equal(extractTopic('CTC System Test Plan', 'en', true), 'CTC System Test Plan');
+  const source = '目前已提交系統整合測試報告(B版)，待審查。';
+  const draft = prepareAgenda([{number:2, title:source, content:source}])[0];
+  assert.equal(draft.topic,'系統整合測試報告');
+  assert.equal(draft.sourceText,source);
+});

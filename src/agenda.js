@@ -65,27 +65,47 @@ function shortTitle(text, lang) {
   if (lang === "en") s = s.replace(/\s+\S*$/, "");
   return s + "…";
 }
-// Prefer names present in the source, not dates, letter numbers or narrative verbs.
+// Extract only source phrases; never translate or invent a title.
+const zhEnd = "(?:一致性測試程序|測試程序|測試計畫|測試報告|安全文件|聯合會勘|現場會勘|施工計畫|施工時程|切換時程|會議紀錄|測試紀錄|軌道佈置圖|軌道配置圖|聯鎖圖表|設計圖說|設計文件|審查意見|安裝進度|施工進度|測試進度|測試排程|介面協調|設備安裝|設備測試|驗收測試|功能測試|整合測試|系統測試|作業行程|更新數量|教育訓練|警報秒數|切換策略|軟體更新|受損事件|測試|計畫|程序|報告|時程)";
+const zhAction = /(?:提送|提交|修訂|更新|提供|確認|審查|辦理|安排|進行|完成|討論|要求|追蹤|協調|有關|關於)/g;
+function narrative(text, lang) {
+  return lang === "zh"
+    ? /已於|已經|目前|預計|預定|請|待|提送|提交|發文|辦理|安排|進行|完成|收到/.test(text)
+    : /\b(?:has|have|had|will|shall|should|must|received|submitted|sent|requested|currently|pending|kindly|please|arrange|conduct)\b/i.test(text);
+}
 export function extractTopic(text, lang, explicit = false) {
-  if (explicit) return shortTitle(text, lang);
+  text = (text || "").trim();
+  if (!text) return "";
+  // A real, concise Topic cell is authoritative; an action sentence isn't.
+  if (explicit && !narrative(text, lang)) return shortTitle(text, lang);
   if (lang === "zh") {
-    const match = text.match(
-      /(?:提送|提交|修訂|更新|提供|確認)\s*((?:[^，。；：\n（）()]){2,70}?(?:測試程序|測試計畫|測試報告|安全文件|聯合會勘|施工計畫|施工時程|切換時程|會議紀錄|測試紀錄|軌道佈置圖|聯鎖圖表))/,
-    );
-    if (match)
-      return match[1]
-        .replace(/^(?:辦理|安排|進行|有關|關於|本案)\s*/, "")
-        .trim();
+    // Work clause by clause so dates and letter references cannot enter the name.
+    for (const clause of text.split(/[，。；：\n]/)) {
+      if (/^(?:避免|以利|以免|以確認|為了|後續|剩餘|待關閉)/.test(clause.trim())) continue;
+      let phrase = clause.trim().replace(/^[•·\s\d、.)]+/, "");
+      const actions = [...phrase.matchAll(zhAction)];
+      const candidates = [...actions].reverse().map(action => phrase.slice(action.index + action[0].length));
+      candidates.push(phrase);
+      for (let candidate of candidates) {
+        candidate = candidate.replace(/^(?:請|將|先|儘速|持續|相關|有關|關於|本案|之|的|以|就|針對)\s*/, "");
+        const named = candidate.match(new RegExp("^([^，。；：\n（）()]{1,48}?" + zhEnd + ")(?!程序|計畫|報告|紀錄|進度|排程)"));
+        if (named && !/\d{3,}|字第|字號|已於|預計|收到|以確認|請|已提交|已提送/.test(named[1])) return named[1].trim();
+      }
+    }
   } else {
-    const named = text.match(
-      /\b((?:[A-Z][A-Za-z0-9/&-]*\s+){1,10}(?:Procedure|Plan|Report|Schedule|Survey|Test|Testing|Documentation|Documents?))\b/,
-    );
-    if (named) return named[1].trim();
-    const phrase = text.match(
-      /\b(?:the|a|an)\s+((?:[a-z0-9&/-]+\s+){0,6}(?:test procedure|test plan|test report|site survey|safety documents|construction schedule|switchover schedule|installation progress))\b/i,
-    );
-    if (phrase) return phrase[1].trim();
+    // Strip reporting verbs before matching both sentence-case and title-case names.
+    const action = /\b(?:sent|submitted|submit|provide|provided|review|reviewed|discuss|discussed|arrange|arranged|conduct|conducted|complete|completed|update|updated|revise|revised|request|requested)\s+(?:(?:the|a|an)\s+)?/ig;
+    const ending = "(?:test procedure|test plan|test report|concordance test procedure|site survey|joint site survey|safety documents?|construction schedule|switchover schedule|installation progress|interface coordination|design documents?|test schedule|test records?|test|testing|procedure|plan|report|schedule|survey)";
+    for (const clause of text.split(/[;\n]/)) {
+      const matches = [...clause.matchAll(action)];
+      const phrase = matches.length ? clause.slice(matches.at(-1).index + matches.at(-1)[0].length) : clause.replace(/^(?:the|a|an)\s+/i, "");
+      const named = phrase.match(new RegExp("^((?:[A-Za-z0-9/&’-]+\\s+){0,10}" + ending + ")\\b", "i"));
+      if (named && !narrative(named[1], "en")) return named[1].trim();
+      const capitalized = clause.match(/\b((?:[A-Z][A-Za-z0-9/&-]*\s+){1,10}(?:Procedure|Plan|Report|Schedule|Survey|Test|Testing|Documentation|Documents?))\b/);
+      if (capitalized && !narrative(capitalized[1], "en")) return capitalized[1].trim();
+    }
   }
+  // Uncertain phrases remain source excerpts for manual review.
   return shortTitle(text, lang);
 }
 const normalize = (s) => s.toLowerCase().replace(/[\s\p{P}\p{S}]/gu, "");
@@ -148,8 +168,8 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
       const body = splitLanguages(slide.content),
         title = splitLanguages(slide.title || slide.content);
       drafts.push({
-        topic: shortTitle(title.zh, "zh"),
-        topicEn: shortTitle(title.en, "en"),
+        topic: extractTopic(title.zh, "zh", true),
+        topicEn: extractTopic(title.en, "en", true),
         summary: summarize(body.zh),
         summaryEn: summarize(body.en, "en"),
         description: "",
