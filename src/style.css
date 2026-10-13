@@ -1342,3 +1342,8 @@ dialog p {
     overflow-y: auto;
   }
 }
+
+/* Current-topic delete and ordering controls. */
+.editor-top:has(.topic-actions) { flex-wrap: wrap; gap: 12px; }
+.topic-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.topic-actions button:disabled { opacity: .45; cursor: default; }

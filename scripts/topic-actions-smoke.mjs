@@ -1,0 +1,44 @@
+import { chromium, expect } from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',args:['--no-sandbox']});
+try {
+  const page = await browser.newPage();
+  await page.goto('http://127.0.0.1:5173');
+  const original = await page.evaluate(async () => {
+    const {demo} = await import('/src/model.js');
+    const {saveWorkspace} = await import('/src/storage.js');
+    const state = demo();
+    await saveWorkspace(state,0,false,state.meetings[0].id);
+    return state;
+  });
+  await page.reload();
+  const ids = original.meetings[0].entries.map(e=>e.issueId);
+  await expect(page.locator('#topic-up')).toBeDisabled();
+  await page.locator('#topic-down').click();
+  await expect(page.locator('.editor-top .eyebrow')).toContainText('02');
+  await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
+  await page.reload();
+  const read = () => page.evaluate(async()=>{const {readWorkspace}=await import('/src/storage.js');return (await readWorkspace()).state;});
+  const reordered = await read();
+  assert.deepEqual(reordered.meetings[0].entries.map(e=>e.issueId),[ids[1],ids[0],...ids.slice(2)]);
+  assert.deepEqual(reordered.meetings[0].entries.find(e=>e.issueId===ids[0]),original.meetings[0].entries[0]);
+  assert.deepEqual(reordered.meetings[1],original.meetings[1]);
+  await page.locator('#add').click();
+  const added = await page.locator('.issue.selected').getAttribute('data-entry');
+  await expect(page.locator('#topic-down')).toBeDisabled();
+  await page.locator('#delete-top').click();
+  await page.locator('dialog button[type=submit]').click();
+  await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
+  assert.equal((await read()).meetings[0].entries.some(e=>e.issueId===added),false);
+  await page.locator(`[data-entry="${ids[0]}"]`).click();
+  await page.locator('#delete-top').click();
+  await page.locator('dialog button[type=submit]').click();
+  await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
+  await page.reload();
+  const deleted = await read();
+  assert.equal(deleted.meetings[0].entries.some(e=>e.issueId===ids[0]),false);
+  assert.deepEqual(deleted.meetings[1],original.meetings[1]);
+  await page.setViewportSize({width:390,height:844});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  console.log('PASS: move topic persists with stable IDs/content; new-topic and historical-topic deletion affect current meeting only; boundary controls and mobile width');
+} finally {await browser.close();}

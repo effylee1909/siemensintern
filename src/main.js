@@ -198,7 +198,7 @@ function render() {
     }</div></section>
 <section class="editor">${
       e
-        ? `<div class="editor-top"><div class="eyebrow">議題 ${String(m.entries.indexOf(e) + 1).padStart(2, "0")} <span>／ ${esc(e.category)}</span></div><span class="badge ${e.status}">${statuses[e.status]}</span></div>${bilingualInputs(e, "topic", "議題名稱 / Topic")}<div class="editor-fields"><label class="field">議題狀態 / Status<select data-field="status">${Object.entries(
+        ? `<div class="editor-top"><div class="eyebrow">議題 ${String(m.entries.indexOf(e) + 1).padStart(2, "0")} <span>／ ${esc(e.category)}</span></div><div class="topic-actions"><span class="badge ${e.status}">${statuses[e.status]}</span><button id="topic-up" class="secondary" ${m.entries.indexOf(e) === 0 ? "disabled" : ""} title="依本次完整議題順序上移">↑ 上移 / Up</button><button id="topic-down" class="secondary" ${m.entries.indexOf(e) === m.entries.length - 1 ? "disabled" : ""} title="依本次完整議題順序下移">↓ 下移 / Down</button><button id="delete-top" class="text-button danger">刪除議題 / Delete</button></div></div>${bilingualInputs(e, "topic", "議題名稱 / Topic")}<div class="editor-fields"><label class="field">議題狀態 / Status<select data-field="status">${Object.entries(
             statuses,
           )
             .map(
@@ -476,7 +476,7 @@ function bind() {
     $('[data-field="topic"]').focus();
     $('[data-field="topic"]').select();
   };
-  $("#delete")?.addEventListener("click", () =>
+  const deleteTopic = () =>
     modal(
       "移除本次議題",
       `<p>僅從本次會議移除，其他週的歷史紀錄會保留。若議題已完成，建議改為「已關閉」。</p>${error}<button type="submit" class="primary">確認移除</button>`,
@@ -487,8 +487,18 @@ function bind() {
         change();
         render();
       },
-    ),
-  );
+    );
+  $("#delete")?.addEventListener("click", deleteTopic);
+  $("#delete-top")?.addEventListener("click", deleteTopic);
+  const moveTopic = (offset) => {
+    const entries = current().entries, from = entries.findIndex(e => e.issueId === entryId), to = from + offset;
+    if (from < 0 || to < 0 || to >= entries.length) return;
+    [entries[from], entries[to]] = [entries[to], entries[from]];
+    change();
+    render();
+  };
+  $("#topic-up")?.addEventListener("click", () => moveTopic(-1));
+  $("#topic-down")?.addEventListener("click", () => moveTopic(1));
   $("#import").onclick = () => chooseFile(".docx", importWord);
   $("#ppt").onclick = () => chooseFile(".pptx", uploadPpt);
   $("#export").onclick = () =>
