@@ -243,28 +243,35 @@ function readBilingualCells(topic, description, note, owner) {
   return result;
 }
 export function exportDocx(meeting) {
-  const row = (values) =>
-    `<w:tr>${values.map((v) => `<w:tc><w:tcPr><w:tcW w:w="1800" w:type="dxa"/></w:tcPr>${para(v)}</w:tc>`).join("")}</w:tr>`;
-  const field = (k, e) => block(markers[k], e[k]);
-  const status = {
-    open: "進行中 / Open",
-    blocked: "待協調 / Pending coordination",
-    closed: "已關閉 / Closed",
+  // Recreate the template layout; never bundle private templates or meeting data.
+  const widths = [750, 2850, 7150, 1825, 1825];
+  const paragraph = (text, { bold = false, size = 21, color = "000000", center = false, keep = false } = {}) =>
+    String(text ?? "").split("\n").map(line => `<w:p><w:pPr><w:spacing w:before="0" w:after="70" w:line="276" w:lineRule="auto"/>${center ? '<w:jc w:val="center"/>' : ''}${keep ? '<w:keepNext/>' : ''}</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="KaiTi"/>${bold ? '<w:b/>' : ''}<w:color w:val="${color}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${esc(line)}</w:t></w:r></w:p>`).join("");
+  const field = (key, entry) => {
+    if (!entry[key] && key !== "topic" && key !== "description") return "";
+    return paragraph(markers[key], {bold:true,size:18,color:"555555",keep:true}) + paragraph(entry[key] || "");
   };
-  const body =
-    para(`會議紀錄 / Minutes of Meeting: ${meeting.title} — ${meeting.date}`) +
-    para(`會議次數 / Meeting No.: ${meeting.number || ""}`) +
-    para(`English meeting title: ${meeting.titleEn || ""}`) +
-    `<w:tbl><w:tblPr><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map((k) => `<w:${k} w:val="single" w:sz="4"/>`).join("")}</w:tblBorders></w:tblPr>${row(["項次 / Item", "議題 / Topic", "內容 / Description", "備註 / Note", "負責人 / PiC"])}${meeting.entries.map((e, i) => row([i + 1, [field("topic", e), field("topicEn", e), field("category", e), field("categoryEn", e)].join("\n"), [field("summary", e), field("summaryEn", e), field("description", e), field("descriptionEn", e)].join("\n"), [block(markers.status, status[e.status] || ""), field("note", e), field("noteEn", e), ...(e.sourceSlides?.length ? [`來源 / Source: ${e.sourceFile || ""} · Slides ${e.sourceSlides.join(", ")}`] : [])].join("\n"), [field("owner", e), field("ownerEn", e)].join("\n")])).join("")}</w:tbl><w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>`;
+  const row = (cells, header = false) => `<w:tr>${header ? '<w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>' : ''}${cells.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/><w:vAlign w:val="top"/>${header ? '<w:shd w:fill="E7E6E6"/>' : ''}</w:tcPr>${cell || paragraph("")}</w:tc>`).join("")}</w:tr>`;
+  const statuses = {open:"進行中 / Open",blocked:"待協調 / Pending coordination",closed:"已關閉 / Closed"};
+  const table = `<w:tbl><w:tblPr><w:tblW w:w="14400" w:type="dxa"/><w:jc w:val="center"/><w:tblLayout w:type="fixed"/><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:color="000000"/>`).join("")}</w:tblBorders><w:tblCellMar><w:top w:w="100" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="100" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${row(["Item\n項次","Topic\n議題","Description\n內容","Note\n備註","PiC\n負責人"].map(v=>paragraph(v,{bold:true,center:true})),true)}${meeting.entries.map((e,i)=>row([
+    paragraph(i+1,{center:true}),
+    field("topic",e)+field("topicEn",e)+field("category",e)+field("categoryEn",e),
+    field("summary",e)+field("summaryEn",e)+field("description",e)+field("descriptionEn",e),
+    (e.status ? paragraph(markers.status,{bold:true,size:18,keep:true})+paragraph(statuses[e.status]||"") : "")+field("note",e)+field("noteEn",e)+(e.sourceSlides?.length ? paragraph(`來源 / Source: ${e.sourceFile||""} · Slides ${e.sourceSlides.join(", ")}`,{size:18,color:"555555"}) : ""),
+    field("owner",e)+field("ownerEn",e),
+  ])).join("")}</w:tbl>`;
+  const body = paragraph("會議紀錄 / Minute of Meeting",{bold:true,size:32,center:true,keep:true}) +
+    paragraph(`會議名稱 / Meeting: ${meeting.title || ""}${meeting.titleEn ? " / " + meeting.titleEn : ""}`,{keep:true}) +
+    paragraph(`會議時間 / Date & time: ${meeting.date || ""}`,{keep:true}) +
+    paragraph(`會議次數 / Meeting No.: ${meeting.number || ""}`,{keep:true}) +
+    ["會議地點 / Location:","主辦單位 / Organizer:","與會人員 / Attendees:","主席 / Chair:"].map(v=>paragraph(v,{keep:true})).join("") +
+    paragraph("會議內容 / Meeting discussion",{bold:true,keep:true})+table+
+    `<w:sectPr><w:footerReference w:type="default" r:id="footer"/><w:pgSz w:w="15840" w:h="12240" w:orient="landscape"/><w:pgMar w:top="720" w:right="720" w:bottom="720" w:left="720" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>`;
   return zipSync({
-    "[Content_Types].xml": strToU8(
-      '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
-    ),
-    "_rels/.rels": strToU8(
-      '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
-    ),
-    "word/document.xml": strToU8(
-      `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="${W}"><w:body>${body}</w:body></w:document>`,
-    ),
+    "[Content_Types].xml":strToU8('<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>'),
+    "_rels/.rels":strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'),
+    "word/_rels/document.xml.rels":strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="footer" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>'),
+    "word/footer1.xml":strToU8(`<?xml version="1.0" encoding="UTF-8"?><w:ftr xmlns:w="${W}"><w:p><w:pPr><w:jc w:val="right"/></w:pPr><w:r><w:t>Page </w:t></w:r><w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p></w:ftr>`),
+    "word/document.xml":strToU8(`<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="${W}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>${body}</w:body></w:document>`),
   });
 }
