@@ -777,44 +777,50 @@ async function preparePpt(p) {
   );
   const normalized = (s) =>
     (s || "").replace(/[\s\p{P}\p{S}]/gu, "").toLowerCase();
+  const suggestions = drafts.map(e => {
+    const sameSource = meeting.entries.filter(
+      (x) =>
+        x.sourcePresentationId === p.id &&
+        x.sourceItem === e.sourceItem &&
+        x.sourceSlides?.some((n) => e.sourceSlides.includes(n)),
+    );
+    const exact = [...known].filter(
+      ([id, x]) =>
+        (e.topic && normalized(x.topic) === normalized(e.topic)) ||
+        (e.topicEn && normalized(x.topicEn) === normalized(e.topicEn)),
+    );
+    const uniqueSourceItem =
+      (e.category || e.categoryEn) &&
+      drafts.filter(
+        (d) =>
+          d.sourceItem === e.sourceItem &&
+          normalized(d.category) === normalized(e.category),
+      ).length === 1;
+    const byItem = [...known].filter(
+      ([id, x]) =>
+        uniqueSourceItem &&
+        e.sourceItem &&
+        e.sourceItem === x.sourceItem &&
+        normalized(e.category) === normalized(x.category),
+    );
+    return sameSource.length === 1
+        ? sameSource[0].issueId
+        : exact.length === 1
+          ? exact[0][0]
+          : byItem.length === 1
+            ? byItem[0][0]
+            : "";
+  });
+  const counts = new Map();
+  suggestions.filter(Boolean).forEach(id => counts.set(id, (counts.get(id) || 0) + 1));
   modal(
     "PPT 整理成會議紀錄 / Prepare minutes",
     `${metadata.number || metadata.date ? `<div class="detected-metadata"><p>簡報封面 / Detected cover: 第 ${metadata.number || "—"} 次 · ${metadata.date || "—"}</p><label class="check"><input name="useMetadata" type="checkbox" ${fits && !meeting.entries.length ? "checked" : ""} ${fits ? "" : "disabled"}> 採用封面的次數、日期與雙語會議名稱 / Use cover metadata</label>${fits ? "" : "<p>封面資料不足或與其他會議衝突，請使用「編輯會議資料」確認。 / Check meeting metadata manually.</p>"}</div>` : ""}<p>共 ${p.slides.length} 頁簡報，辨識 ${drafts.length} 個候選議題（不是只取 3 個議題）。請確認摘要、勾選本次要討論的議題，並連結既有議題。原始中英文完整保留，會議討論欄留白。</p><p class="warning">每議題最多摘錄 3 個重點，議題數量沒有 3 個的限制。本機摘錄式摘要，不是 AI 翻譯。可見頁包含關閉議題也會預選；隱藏頁與附錄可另外勾選；圖表內容需人工核對。<br>Extractive summary only. Review source text and fill missing translations.</p><div class="agenda-selection"><strong id="agenda-count"></strong><button type="button" id="agenda-all" class="secondary">全選所有議題 / Select all</button><button type="button" id="agenda-visible" class="secondary">選取可見頁 / Visible pages</button><button type="button" id="agenda-none" class="text-button">取消全選 / Clear</button></div><div class="import-list agenda-preview">${drafts
       .map((e, i) => {
-        const sameSource = meeting.entries.filter(
-          (x) =>
-            x.sourcePresentationId === p.id &&
-            x.sourceItem === e.sourceItem &&
-            x.sourceSlides?.some((n) => e.sourceSlides.includes(n)),
-        );
-        const exact = [...known].filter(
-          ([id, x]) =>
-            (e.topic && normalized(x.topic) === normalized(e.topic)) ||
-            (e.topicEn && normalized(x.topicEn) === normalized(e.topicEn)),
-        );
-        const uniqueSourceItem =
-          (e.category || e.categoryEn) &&
-          drafts.filter(
-            (d) =>
-              d.sourceItem === e.sourceItem &&
-              normalized(d.category) === normalized(e.category),
-          ).length === 1;
-        const byItem = [...known].filter(
-          ([id, x]) =>
-            uniqueSourceItem &&
-            e.sourceItem &&
-            e.sourceItem === x.sourceItem &&
-            normalized(e.category) === normalized(x.category),
-        );
-        const suggested =
-          sameSource.length === 1
-            ? sameSource[0].issueId
-            : exact.length === 1
-              ? exact[0][0]
-              : byItem.length === 1
-                ? byItem[0][0]
-                : "";
-        return `<article data-draft="${i}"><label class="check"><input type="checkbox" name="include-${i}" ${e.recommended ? "checked" : ""}> ${i + 1}. 來源頁 / Slides ${e.sourceSlides.join(", ")} <span class="badge ${e.status}">${statuses[e.status]}</span></label><p class="draft-flags">${e.hidden ? "隱藏頁 / Hidden · " : ""}${e.annex ? "附錄 / Annex · " : ""}${e.confidence === "review" ? "版型需確認 / Layout needs review" : ""}</p><div class="bilingual-grid"><label class="field">議題 / Topic (ZH)<input name="topic-${i}" value="${esc(e.topic)}" placeholder="待補中文 / Chinese missing"></label><label class="field">議題 / Topic (EN)<input name="topicEn-${i}" value="${esc(e.topicEn)}" placeholder="待翻譯 / Translation required"></label><label class="field">重點 / Key points (ZH)<textarea name="summary-${i}">${esc(e.summary)}</textarea></label><label class="field">重點 / Key points (EN)<textarea name="summaryEn-${i}" placeholder="Source English missing; please translate">${esc(e.summaryEn)}</textarea></label><label class="field">負責人 / Owner (ZH)<input name="owner-${i}" value="${esc(e.owner)}"></label><label class="field">負責人 / Owner (EN)<input name="ownerEn-${i}" value="${esc(e.ownerEn)}"></label></div><label class="field">議題連結 / Topic link<select name="agenda-link-${i}"><option value="">新增議題 / New topic</option>${[...known].map(([id, x]) => `<option value="${esc(id)}" ${id === suggested ? "selected" : ""}>${meeting.entries.some((y) => y.issueId === id) ? "更新本次" : "連結其他會議"} / ${meeting.entries.some((y) => y.issueId === id) ? "Update current" : "Link existing"}: ${esc(x.topic || x.topicEn)}</option>`).join("")}</select></label><details class="source-details"><summary>核對中英文原文 / Review source text</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "Chinese source not provided")}</pre><pre>${esc(e.sourceTextEn || "English source not provided")}</pre></div></details></article>`;
+        // Ambiguous matches remain new topics until reviewed; never preselect
+        // the same existing issue for multiple distinct presentation rows.
+        const suggested = counts.get(suggestions[i]) === 1 ? suggestions[i] : "";
+        return `<article data-draft="${i}"><label class="check"><input type="checkbox" name="include-${i}" ${e.recommended ? "checked" : ""}> ${i + 1}. 來源頁 / Slides ${e.sourceSlides.join(", ")} <span class="badge ${e.status}">${statuses[e.status]}</span></label><p class="draft-flags">${e.hidden ? "隱藏頁 / Hidden · " : ""}${e.annex ? "附錄 / Annex · " : ""}${e.confidence === "review" ? "版型需確認 / Layout needs review" : ""}${counts.get(suggestions[i]) > 1 ? " · 既有議題連結有歧義，預設新增獨立議題 / Ambiguous link; new topic selected" : ""}</p><div class="bilingual-grid"><label class="field">Topic<input name="topicEn-${i}" value="${esc(e.topicEn)}"></label><label class="field">議題<input name="topic-${i}" value="${esc(e.topic)}"></label><label class="field">Key points<textarea name="summaryEn-${i}">${esc(e.summaryEn)}</textarea></label><label class="field">重點<textarea name="summary-${i}">${esc(e.summary)}</textarea></label><label class="field">Owner<input name="ownerEn-${i}" value="${esc(e.ownerEn)}"></label><label class="field">負責人<input name="owner-${i}" value="${esc(e.owner)}"></label></div><label class="field">議題連結 / Topic link<select name="agenda-link-${i}"><option value="">新增議題 / New topic</option>${[...known].map(([id, x]) => `<option value="${esc(id)}" ${id === suggested ? "selected" : ""}>${meeting.entries.some((y) => y.issueId === id) ? "更新本次" : "連結其他會議"} / ${meeting.entries.some((y) => y.issueId === id) ? "Update current" : "Link existing"}: ${esc(x.topic || x.topicEn)}</option>`).join("")}</select></label><details class="source-details"><summary>核對中英文原文 / Review source text</summary><div class="bilingual-grid"><pre>${esc(e.sourceTextEn || "English source not provided")}</pre><pre>${esc(e.sourceText || "Chinese source not provided")}</pre></div></details></article>`;
       })
       .join(
         "",
