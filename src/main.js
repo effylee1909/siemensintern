@@ -1,5 +1,5 @@
 import "./style.css";
-import { backupArchive, restoreArchive } from "./archive.js";
+import { backupArchive, restoreArchive, MAX_ARCHIVE } from "./archive.js";
 import {
   readWorkspace,
   saveWorkspace,
@@ -284,11 +284,11 @@ function bind() {
     } catch {}
     const mb = (n) =>
       Number.isFinite(n)
-        ? (n / 1024 / 1024).toFixed(0) + " MB"
+        ? n >= 1024 ** 3 ? (n / 1024 ** 3).toFixed(2) + " GB" : (n / 1024 / 1024).toFixed(0) + " MB"
         : "瀏覽器未提供";
     modal(
       "儲存空間 / Storage",
-      `<p>單一檔案上限 100 MB；沒有 40 MB 的累積限制。</p><p>此網站已使用約 ${mb(info.usage)}；瀏覽器可用配額約 ${mb(info.quota)}。估計值不是可保證的剩餘容量。</p><p>檔案只存在這部裝置。瀏覽器清除／回收資料或磁碟滿時可能遺失，請定期下載包含原檔的完整 ZIP 備份。</p><button type="button" id="persist-storage" class="primary">嘗試啟用持續保存 / Keep local data</button><p id="persist-result" role="status"></p>`,
+      `<p>單一 PPT 上限 100 MB；歷史原檔總量沒有固定 GB 上限，依瀏覽器配額而定。完整 ZIP 備份上限 20 GB。</p><p>此網站已使用約 ${mb(info.usage)}；瀏覽器總配額約 ${mb(info.quota)}；估計剩餘約 ${mb(Number.isFinite(info.quota) && Number.isFinite(info.usage) ? Math.max(0, info.quota - info.usage) : undefined)}。估計值不是可保證的剩餘容量。</p><p>檔案只存在這部裝置。瀏覽器清除／回收資料或磁碟滿時可能遺失，請定期下載包含原檔的完整 ZIP 備份。</p><button type="button" id="persist-storage" class="primary">嘗試啟用持續保存 / Keep local data</button><p id="persist-result" role="status"></p>`,
     );
     $("#persist-storage").onclick = async () => {
       try {
@@ -508,8 +508,8 @@ function bind() {
   };
   $("#restore").onclick = () =>
     chooseFile(".json,.zip,.meeting", async (file) => {
-      if (file.size > 2 * 1024 * 1024 * 1024)
-        throw Error("單次備份匯入上限為 2 GB");
+      if (file.size > (file.name.toLowerCase().endsWith(".zip") ? MAX_ARCHIVE : 100 * 1024 * 1024))
+        throw Error("ZIP 備份上限 20 GB；JSON／舊加密備份上限 100 MB");
       const zipped = file.name.toLowerCase().endsWith(".zip");
       const text = zipped ? null : await file.text();
       let content;

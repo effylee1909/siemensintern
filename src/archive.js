@@ -1,4 +1,4 @@
-import { Zip, ZipPassThrough, unzipSync, strToU8, strFromU8 } from "fflate";
+import { createBlobZip, readBlobZip, verifyZipEntry } from "./blob-zip.js";
 import { validateState } from "./model.js";
 import {
   getAttachment,
@@ -6,7 +6,7 @@ import {
   plainBackup,
   readPlainBackup,
 } from "./storage.js";
-const MAX_ARCHIVE = 2 * 1024 * 1024 * 1024;
+export const MAX_ARCHIVE = 20 * 1024 * 1024 * 1024;
 export async function backupArchive(state) {
   const clone = structuredClone(state),
     files = [];
@@ -18,7 +18,7 @@ export async function backupArchive(state) {
         total += blob.size;
         if (total > MAX_ARCHIVE - 100 * 1024 * 1024)
           throw Error(
-            "完整備份超過 2 GB，請分批下載各場 PPT 原檔另存；會議資料仍保留在瀏覽器",
+            "完整備份超過 20 GB，請分批下載各場 PPT 原檔另存；會議資料仍保留在瀏覽器",
           );
         const path = `attachments/${String(files.length + 1).padStart(6, "0")}.pptx`;
         files.push({ path, blob });
@@ -30,57 +30,20 @@ export async function backupArchive(state) {
     }
   if (!files.length)
     return { name: "json", data: plainBackup(clone), type: "application/json" };
-  const chunks = [];
-  let failure;
-  const zip = new Zip((err, data) => {
-    if (err) failure = err;
-    else chunks.push(data);
-  });
-  const metadata = new ZipPassThrough("workspace.json");
-  zip.add(metadata);
-  metadata.push(strToU8(plainBackup(clone)), true);
-  for (const { path, blob } of files) {
-    const entry = new ZipPassThrough(path);
-    zip.add(entry);
-    const reader = blob.stream().getReader();
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) {
-        entry.push(new Uint8Array(), true);
-        break;
-      }
-      entry.push(value, false);
-    }
-    if (failure) throw failure;
-  }
-  zip.end();
-  if (failure) throw failure;
-  return {
-    name: "zip",
-    data: new Blob(chunks, { type: "application/zip" }),
-    type: "application/zip",
-  };
+  const metadata = new Blob([plainBackup(clone)]);
+  if (metadata.size > 100 * 1024 * 1024) throw Error("會議文字資料超過 100 MB 備份限制");
+  const data = await createBlobZip([
+    { name: "workspace.json", blob: metadata },
+    ...files.map(({ path, blob }) => ({ name: path, blob })),
+  ]);
+  return { name: "zip", data, type: "application/zip" };
 }
 export async function restoreArchive(file) {
-  if (file.size > MAX_ARCHIVE) throw Error("單次備份匯入上限為 2 GB");
-  const data = unzipSync(new Uint8Array(await file.arrayBuffer()), {
-    filter: (f) => {
-      if (f.compression !== 0)
-        throw Error("請使用本網站產生的完整備份（不支援重新壓縮的 ZIP）");
-      if (f.name === "workspace.json") {
-        if (f.originalSize > 100 * 1024 * 1024) throw Error("會議資料過大");
-        return true;
-      }
-      if (/^attachments\/\d{6}\.pptx$/.test(f.name)) {
-        if (f.originalSize > 100 * 1024 * 1024)
-          throw Error("備份包含超過 100 MB 的單一 PPT");
-        return true;
-      }
-      return false;
-    },
-  });
-  if (!data["workspace.json"]) throw Error("找不到會議備份資料");
-  const state = readPlainBackup(strFromU8(data["workspace.json"]), true),
+  if (file.size > MAX_ARCHIVE) throw Error("單次備份匯入上限為 20 GB");
+  const data = await readBlobZip(file);
+  if (!data.has("workspace.json")) throw Error("找不到會議備份資料");
+  const metadata = await verifyZipEntry(data.get("workspace.json"));
+  const state = readPlainBackup(await metadata.text(), true),
     files = [],
     seen = new Set();
   for (const m of state.meetings)
@@ -94,26 +57,17 @@ export async function restoreArchive(file) {
         )
           throw Error("原檔路徑格式不正確");
         seen.add(p.archivePath);
-        const bytes = data[p.archivePath];
-        if (
-          !bytes ||
-          bytes[0] !== 80 ||
-          bytes[1] !== 75 ||
-          p.size !== bytes.length
-        )
-          throw Error("備份中的 PPT 原檔缺失或損毀");
-        files.push({
-          p,
-          blob: new Blob([bytes], {
-            type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-          }),
-        });
+        const entry = data.get(p.archivePath);
+        if (!entry || p.size !== entry.blob.size) throw Error("備份中的 PPT 原檔缺失或損毀");
+        const header = new Uint8Array(await entry.blob.slice(0, 2).arrayBuffer());
+        if (header[0] !== 80 || header[1] !== 75) throw Error("PPT 原檔格式不正確");
+        files.push({ p, entry });
         delete p.archivePath;
       }
     }
   validateState(state);
-  for (const { p, blob } of files) {
-    p.blobId = await putAttachment(blob);
+  for (const { p, entry } of files) {
+    p.blobId = await putAttachment(await verifyZipEntry(entry));
     p.data = "";
   }
   return state;
