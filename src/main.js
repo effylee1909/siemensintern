@@ -121,7 +121,12 @@ function toast(t) {
   $("#toast").classList.add("visible");
   setTimeout(() => $("#toast").classList.remove("visible"), 4500);
 }
+const issueScrollPositions = new Map();
 function render() {
+  const oldIssues = $(".issue-scroll");
+  if (oldIssues)
+    issueScrollPositions.set(oldIssues.dataset.scrollKey, oldIssues.scrollTop);
+  const issueScrollKey = JSON.stringify([selected, filter, query]);
   const oldNav = $(".sidebar nav"),
     navScroll = oldNav?.scrollTop || 0,
     navLeft = oldNav?.scrollLeft || 0;
@@ -178,7 +183,7 @@ function render() {
       )
       .join("")}</div>
 <div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
-<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題">${
+<section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題"><div class="issue-scroll" role="region" aria-label="議題列表 / Topic list" tabindex="0" data-scroll-key="${esc(issueScrollKey)}">${
       list.length
         ? list
             .map((x, i) => {
@@ -187,7 +192,7 @@ function render() {
             })
             .join("")
         : '<div class="empty">沒有符合的議題<br><small>按「新增議題」即可直接編寫紀錄。</small></div>'
-    }</section>
+    }</div></section>
 <section class="editor">${
       e
         ? `<div class="editor-top"><div class="eyebrow">議題 ${String(m.entries.indexOf(e) + 1).padStart(2, "0")} <span>／ ${esc(e.category)}</span></div><span class="badge ${e.status}">${statuses[e.status]}</span></div>${bilingualInputs(e, "topic", "議題名稱 / Topic")}<div class="editor-fields"><label class="field">議題狀態 / Status<select data-field="status">${Object.entries(
@@ -203,6 +208,9 @@ function render() {
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
     }</section></div>${slides.length ? `<section class="slide-panel"><div class="list-heading"><h2>簡報文字參考 <span>${slides.length} 頁</span></h2><div><button id="slide-prev" class="secondary" ${slideIndex === 0 ? "disabled" : ""}>←</button> <span>${slideIndex + 1} / ${slides.length}</span> <button id="slide-next" class="secondary" ${slideIndex === slides.length - 1 ? "disabled" : ""}>→</button> </div></div><p class="subtitle">僅擷取文字，圖片、圖表與版面請使用原始 PowerPoint 確認。簡報原檔與文字參考會一起納入一般備份。</p><pre>${esc(slides[slideIndex].text || "本頁沒有可擷取的文字")}</pre></section>` : ""}<footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
   bind();
+  const issuePane = $(".issue-scroll");
+  if (issuePane)
+    issuePane.scrollTop = issueScrollPositions.get(issueScrollKey) || 0;
   const nav = $(".sidebar nav"),
     active = nav?.querySelector(".meeting.active");
   if (nav) {
@@ -365,6 +373,9 @@ function bind() {
       (b.onclick = () => {
         entryId = b.dataset.entry;
         render();
+        document
+          .querySelector(".issue.selected")
+          ?.focus({ preventScroll: true });
       }),
   );
   document.querySelectorAll("[data-filter]").forEach(

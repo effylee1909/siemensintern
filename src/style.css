@@ -1303,3 +1303,42 @@ dialog p {
   font-size: 13px;
   color: #526b78;
 }
+/* Scroll topic cards separately, keeping the heading and search available. */
+.issue-list {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.issue-list > .list-heading,
+.issue-list > .search {
+  flex-shrink: 0;
+}
+.issue-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #73958d #f0f5f3;
+}
+.issue-scroll:focus-visible {
+  outline: 2px solid #157f74;
+  outline-offset: -2px;
+}
+.issue-scroll .issue:last-child {
+  margin-bottom: 0;
+}
+@media (max-width: 760px) {
+  .issue-list {
+    position: static;
+    max-height: min(420px, 60dvh);
+    overflow: hidden;
+  }
+  .issue-scroll {
+    overflow-y: auto;
+  }
+}
