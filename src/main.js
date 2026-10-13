@@ -163,8 +163,8 @@ function render() {
       )
       .join(
         "",
-      )}</nav><div class="meeting-actions"><button class="new-meeting secondary">＋ 建立下次會議</button><button id="add-history" class="secondary">＋ 新增歷史／其他會議</button><button id="import-history" class="text-button">↑ 批次上傳歷次 PPT</button></div><div class="sidebar-bottom"><div class="local-label"><span class="dot"></span> 本機處理模式</div><p>檔案在瀏覽器中解析。<br>不呼叫雲端 AI 或外部服務。</p><button id="privacy" class="text-button">資料保護與使用說明 ↗</button></div></aside>
-<main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${saveLabel()}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 下載備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title || "尚未設定會議 / Meeting not set")} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>自動儲存於此瀏覽器</strong> · 同一瀏覽器再次開啟即可接續，不需密碼。"}<small>紀錄與備份均未加密；共用此瀏覽器的人可以讀取。資料不會上傳 GitHub。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button>${!dirty && !isDemo && !m.entries.length && !(m.presentations || []).length ? '<button id="load-demo" class="text-button">觀看示範 / View demo</button>' : ""}</div>
+      )}</nav><div class="meeting-actions"><button class="new-meeting secondary">＋ 建立下次會議</button><button id="add-history" class="secondary">＋ 新增歷史／其他會議</button><button id="import-history" class="text-button">↑ 批次上傳歷次 PPT</button></div><div class="sidebar-bottom"><button id="privacy" class="text-button">資料保護與使用說明 ↗</button></div></aside>
+<main><header><div class="breadcrumb">會議紀錄 <span>/</span> ${esc(m.title)}</div><div class="header-actions"><span id="save-state">${saveLabel()}</span><button id="restore" class="secondary">開啟備份</button><button id="backup" class="primary">↓ 下載備份</button></div></header><section class="content"><div class="title-row"><div><div class="eyebrow">WEEKLY MEETING</div><h1>${esc(m.title || "尚未設定會議 / Meeting not set")} <span class="date-tag">${esc(m.date)}</span></h1><p class="meeting-title-en">${esc(m.titleEn || (meetingNumber(m) ? `Weekly Meeting #${meetingNumber(m)}` : ""))}</p><button id="edit-meeting" class="text-button">✎ 編輯會議名稱、次數與日期</button><button id="delete-meeting" class="text-button danger">刪除本次會議 / Delete meeting</button><p class="subtitle">上傳 PPT 產生雙語議程與重點，開會時只需補充討論與決議。<br>Prepare a bilingual agenda from slides, then record the discussion.</p></div><button class="new-meeting primary">＋ 建立下次會議</button></div><div class="notice"><span>◈</span><div>${isDemo ? "<strong>目前顯示虛構示範資料</strong> · 可先試用流程，再建立空白工作區。" : "<strong>自動儲存於此瀏覽器</strong> · 同一瀏覽器再次開啟即可接續，不需密碼。"}<small>紀錄與備份均未加密；共用此瀏覽器的人可以讀取。資料不會上傳 GitHub。</small></div><button id="clear" class="text-button">${isDemo ? "開始我的紀錄" : "清除工作區"}</button>${!dirty && !isDemo && !m.entries.length && !(m.presentations || []).length ? '<button id="load-demo" class="text-button">觀看示範 / View demo</button>' : ""}</div>
 <div class="stats">${[
       ["本次議題", m.entries.length, "all"],
       ["狀態未填", m.entries.filter((e) => e.status === "").length, ""],
@@ -198,7 +198,7 @@ function render() {
     }</div></section>
 <section class="editor">${
       e
-        ? `<div class="editor-top"><div class="eyebrow">議題 ${String(m.entries.indexOf(e) + 1).padStart(2, "0")} <span>／ ${esc(e.category)}</span></div><div class="topic-actions"><span class="badge ${e.status}">${statuses[e.status]}</span><button id="topic-up" class="secondary" ${m.entries.indexOf(e) === 0 ? "disabled" : ""} title="依本次完整議題順序上移">↑ 上移 / Up</button><button id="topic-down" class="secondary" ${m.entries.indexOf(e) === m.entries.length - 1 ? "disabled" : ""} title="依本次完整議題順序下移">↓ 下移 / Down</button><button id="delete-top" class="text-button danger">刪除議題 / Delete</button></div></div>${bilingualInputs(e, "topic", "議題名稱 / Topic")}<div class="editor-fields"><label class="field">議題狀態 / Status<select data-field="status">${Object.entries(
+        ? `<div class="editor-top"><div class="eyebrow">議題 ${String(m.entries.indexOf(e) + 1).padStart(2, "0")} </div><div class="topic-actions"><span class="badge ${e.status}">${statuses[e.status]}</span><button id="topic-up" class="secondary" ${m.entries.indexOf(e) === 0 ? "disabled" : ""} title="依本次完整議題順序上移">↑ 上移 / Up</button><button id="topic-down" class="secondary" ${m.entries.indexOf(e) === m.entries.length - 1 ? "disabled" : ""} title="依本次完整議題順序下移">↓ 下移 / Down</button><button id="delete-top" class="text-button danger">刪除議題 / Delete</button></div></div>${bilingualInputs(e, "topic", "議題名稱 / Topic")}<div class="editor-fields"><label class="field">議題狀態 / Status<select data-field="status">${Object.entries(
             statuses,
           )
             .map(
@@ -207,7 +207,7 @@ function render() {
             )
             .join(
               "",
-            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}${bilingualInputs(e, "category", "階段與分類 / Category")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key points", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文 / Chinese</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
+            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key point", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
     }</section></div><footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
   bind();
@@ -352,6 +352,19 @@ function bind() {
           )),
     );
   $("#edit-meeting").onclick = editMeeting;
+  $("#delete-meeting").onclick = () => {
+    const meeting = current();
+    modal("刪除本次會議 / Delete meeting",
+      `<p>確認刪除「${esc(meeting.title || "未命名會議")}」？本次的議題、紀錄與 PPT 附件會一起移除，其他會議保留。</p>${error}<button type="submit" class="primary">確認刪除會議 / Delete meeting</button>`,
+      () => {
+        const position = state.meetings.findIndex(m => m.id === meeting.id);
+        state.meetings = state.meetings.filter(m => m.id !== meeting.id);
+        if (!state.meetings.length) state = blankWorkspace();
+        selected = state.meetings[Math.min(Math.max(0, position), state.meetings.length - 1)].id;
+        entryId = null; presentationId = null; filter = "all"; query = "";
+        change(); render();
+      });
+  };
   document.querySelectorAll("[data-presentation]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -469,7 +482,9 @@ function bind() {
       category: "",
       categoryEn: "",
     };
-    current().entries.push(e);
+    const entries = current().entries;
+    const after = entries.findIndex(entry => entry.issueId === entryId);
+    entries.splice(after < 0 ? entries.length : after + 1, 0, e);
     entryId = e.issueId;
     change();
     render();
@@ -728,9 +743,10 @@ async function uploadPpt(
 function bilingualInputs(e, key, label, textarea = false) {
   const input = (k, lang) =>
     textarea
-      ? `<textarea data-field="${k}" aria-label="${esc(label)} (${lang})" placeholder="${lang === "ZH" ? "中文內容 / Chinese text" : "English text · Fill if missing"}">${esc(e[k] || "")}</textarea>`
-      : `<input data-field="${k}" aria-label="${key === "topic" && lang === "ZH" ? "議題名稱" : esc(label) + " (" + lang + ")"}" value="${esc(e[k] || "")}" placeholder="${lang === "ZH" ? "中文 / Chinese" : "English · Fill if missing"}">`;
-  return `<div class="bilingual-grid"><label class="field">${label} · 中文 / Chinese${input(key, "ZH")}</label><label class="field">${label} · English${input(key + "En", "EN")}</label></div>`;
+      ? `<textarea data-field="${k}" aria-label="${esc(label)} (${lang})">${esc(e[k] || "")}</textarea>`
+      : `<input data-field="${k}" aria-label="${key === "topic" && lang === "ZH" ? "議題名稱" : esc(label) + " (" + lang + ")"}" value="${esc(e[k] || "")}">`;
+  const [zh, en] = label.split(" / ");
+  return `<div class="bilingual-grid"><label class="field">${esc(zh)}${input(key, "ZH")}</label><label class="field">${esc(en)}${input(key + "En", "EN")}</label></div>`;
 }
 async function preparePpt(p) {
   if (p.slides.some((s) => s.tables === undefined)) {

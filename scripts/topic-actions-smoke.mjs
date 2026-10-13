@@ -23,6 +23,7 @@ try {
   assert.deepEqual(reordered.meetings[0].entries.map(e=>e.issueId),[ids[1],ids[0],...ids.slice(2)]);
   assert.deepEqual(reordered.meetings[0].entries.find(e=>e.issueId===ids[0]),original.meetings[0].entries[0]);
   assert.deepEqual(reordered.meetings[1],original.meetings[1]);
+  await page.locator(`[data-entry="${reordered.meetings[0].entries.at(-1).issueId}"]`).click();
   await page.locator('#add').click();
   const added = await page.locator('.issue.selected').getAttribute('data-entry');
   await expect(page.locator('#topic-down')).toBeDisabled();

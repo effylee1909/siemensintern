@@ -1,0 +1,30 @@
+import {chromium,expect} from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
+try{
+ const page=await browser.newPage();await page.goto('http://127.0.0.1:5173');
+ const initial=await page.evaluate(async()=>{const{demo}=await import('/src/model.js');const{saveWorkspace}=await import('/src/storage.js');const s=demo();s.meetings[0].entries[0].category='Preserve original category';s.meetings[0].entries[0].categoryEn='Preserve category';await saveWorkspace(s,0,false,s.meetings[0].id);return s;});
+ await page.reload();
+ await expect(page.locator('.local-label')).toHaveCount(0);
+ await expect(page.locator('[data-field="category"]')).toHaveCount(0);
+ assert.equal((await page.locator('label').filter({has:page.locator('[data-field="topic"]')}).innerText()).trim(),'議題名稱');
+ assert.equal((await page.locator('label').filter({has:page.locator('[data-field="topicEn"]')}).innerText()).trim(),'Topic');
+ assert.equal((await page.locator('label').filter({has:page.locator('[data-field="summaryEn"]')}).innerText()).trim(),'Agenda key point');
+ const ids=initial.meetings[0].entries.map(e=>e.issueId);
+ await page.locator(`[data-entry="${ids[1]}"]`).click();await page.locator('#add').click();
+ const inserted=await page.locator('.issue.selected').getAttribute('data-entry');
+ const read=()=>page.evaluate(async()=>{const{readWorkspace}=await import('/src/storage.js');return(await readWorkspace()).state;});
+ await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
+ assert.deepEqual((await read()).meetings[0].entries.map(e=>e.issueId),[ids[0],ids[1],inserted,...ids.slice(2)]);
+ await page.locator('#delete-top').click();await page.locator('dialog [type=submit]').click();
+ await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
+ assert.deepEqual(await read(),initial);
+ await page.locator('#delete-meeting').click();await page.locator('dialog [type=submit]').click();
+ await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');await page.reload();
+ assert.deepEqual((await read()).meetings,[initial.meetings[1]]);
+ await page.locator('#delete-meeting').click();await page.locator('dialog [type=submit]').click();
+ await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');await page.reload();
+ const empty=await read();assert.equal(empty.meetings.length,1);assert.equal(empty.meetings[0].entries.length,0);
+ await page.locator('#add').click();await expect(page.locator('#delete-top')).toBeVisible();
+ console.log('PASS: hidden mode/category without data loss; concise labels; insert after selected topic; delete inserted topic; delete meeting preserves other meeting; last-meeting deletion leaves usable workspace');
+}finally{await browser.close();}

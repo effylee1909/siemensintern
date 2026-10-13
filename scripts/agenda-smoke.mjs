@@ -200,8 +200,6 @@ try {
   for (const field of [
     "owner",
     "ownerEn",
-    "category",
-    "categoryEn",
     "status",
     "description",
     "descriptionEn",
@@ -209,6 +207,15 @@ try {
     "noteEn",
   ])
     assert.equal(await page.locator(`[data-field=${field}]`).inputValue(), "");
+  assert.equal(await page.locator('[data-field="category"]').count(), 0);
+  assert.equal(await page.locator('[data-field="categoryEn"]').count(), 0);
+  await page.waitForFunction(() => document.querySelector('#save-state')?.textContent === '已儲存在此瀏覽器');
+  const categories = await page.evaluate(async () => {
+    const {readWorkspace}=await import('/src/storage.js');
+    const workspace=await readWorkspace();
+    return workspace.state.meetings.find(m=>m.id===workspace.selectedId).entries.map(e=>[e.category,e.categoryEn]);
+  });
+  assert.ok(categories.every(([zh,en])=>zh==='' && en===''));
   const blankExport = await page.evaluate(async () => {
     const { exportDocx, readDocx } = await import("/src/office.js");
     const { unzipSync, strFromU8 } = await import(
