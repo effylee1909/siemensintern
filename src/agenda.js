@@ -34,7 +34,11 @@ export function splitLanguages(text = "") {
 }
 export function summarize(text, language = "zh", limit = 3) {
   const pieces = text
-    .split(language === "zh" ? /(?<=[。！？；])|\n+/ : /(?<=[.!?;])\s+|\n+/)
+    .split(
+      language === "zh"
+        ? /(?<=[。！？；])|\n+/
+        : /(?<=[.!?;])\s+(?!January\b|February\b|March\b|April\b|May\b|June\b|July\b|August\b|September\b|October\b|November\b|December\b|Jan\b|Feb\b|Mar\b|Apr\b|Jun\b|Jul\b|Aug\b|Sep\b|Sept\b|Oct\b|Nov\b|Dec\b)|\n+/i,
+    )
     .map((s) => s.trim())
     .filter(Boolean);
   const unique = [...new Set(pieces)];
@@ -60,6 +64,29 @@ function shortTitle(text, lang) {
   let s = first.slice(0, max);
   if (lang === "en") s = s.replace(/\s+\S*$/, "");
   return s + "…";
+}
+// Prefer names present in the source, not dates, letter numbers or narrative verbs.
+export function extractTopic(text, lang, explicit = false) {
+  if (explicit) return shortTitle(text, lang);
+  if (lang === "zh") {
+    const match = text.match(
+      /(?:提送|提交|修訂|更新|提供|確認)\s*((?:[^，。；：\n（）()]){2,70}?(?:測試程序|測試計畫|測試報告|安全文件|聯合會勘|施工計畫|施工時程|切換時程|會議紀錄|測試紀錄|軌道佈置圖|聯鎖圖表))/,
+    );
+    if (match)
+      return match[1]
+        .replace(/^(?:辦理|安排|進行|有關|關於|本案)\s*/, "")
+        .trim();
+  } else {
+    const named = text.match(
+      /\b((?:[A-Z][A-Za-z0-9/&-]*\s+){1,10}(?:Procedure|Plan|Report|Schedule|Survey|Test|Testing|Documentation|Documents?))\b/,
+    );
+    if (named) return named[1].trim();
+    const phrase = text.match(
+      /\b(?:the|a|an)\s+((?:[a-z0-9&/-]+\s+){0,6}(?:test procedure|test plan|test report|site survey|safety documents|construction schedule|switchover schedule|installation progress))\b/i,
+    );
+    if (phrase) return phrase[1].trim();
+  }
+  return shortTitle(text, lang);
 }
 const normalize = (s) => s.toLowerCase().replace(/[\s\p{P}\p{S}]/gu, "");
 export function prepareAgenda(slides, presentationId = "", fileName = "") {
@@ -89,8 +116,8 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           blocked = /pending|await|待協調/i.test(rawStatus),
           open = /\bopen\b|\bongoing\b|進行中/i.test(rawStatus);
         drafts.push({
-          topic: shortTitle(title.zh, "zh") || "",
-          topicEn: shortTitle(title.en, "en") || "",
+          topic: extractTopic(title.zh, "zh", topic >= 0) || "",
+          topicEn: extractTopic(title.en, "en", topic >= 0) || "",
           summary: summarize(body.zh),
           summaryEn: summarize(body.en, "en"),
           description: "",

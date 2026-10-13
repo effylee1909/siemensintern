@@ -90,6 +90,8 @@ try {
     .fill("The test date was confirmed.");
   await page.locator("[data-field=note]").fill("追蹤結果。");
   await page.locator("[data-field=noteEn]").fill("Follow up the results.");
+  await page.locator("[data-field=topic]").fill("舊版較長敘述標題");
+  await page.locator("[data-field=topicEn]").fill("An older narrative title");
   await page
     .getByRole("button", { name: "整理成會議紀錄 / Prepare minutes" })
     .click();
@@ -143,13 +145,11 @@ try {
   const backup = await readFile(await (await event).path());
   assert.equal(JSON.parse(backup.toString()).format, "meeting-desk-backup");
   await page.getByRole("button", { name: "開啟備份", exact: true }).click();
-  await page
-    .locator("#file")
-    .setInputFiles({
-      name: "workspace.json",
-      mimeType: "application/json",
-      buffer: backup,
-    });
+  await page.locator("#file").setInputFiles({
+    name: "workspace.json",
+    mimeType: "application/json",
+    buffer: backup,
+  });
   assert.equal(await page.locator("dialog input[type=password]").count(), 0);
   await page.locator("dialog input[type=checkbox]").check();
   await page.getByRole("button", { name: "開啟備份 / Open backup" }).click();

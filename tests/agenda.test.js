@@ -6,6 +6,7 @@ import {
   prepareAgenda,
   applyPreparedAgenda,
   presentationMetadata,
+  extractTopic,
 } from "../src/agenda.js";
 const table = (desc, item = "1", status = "進行中\nOpen") => [
   [
@@ -168,4 +169,33 @@ test("missing PPT fields stay blank and repeated titles do not merge distinct ro
       assert.equal(e[k], "");
   }
   assert.match(d[1].summaryEn, /Second item/);
+});
+
+test("document title extraction removes reporting narrative without modifying description", () => {
+  const zh =
+    "承包商已於2026/01/15 發文字號 TEST 字第0000001號 提送軌旁安裝一致性測試程序(A版)，後續待審查。";
+  const en =
+    "The supplier has sent Wayside Concordance Test Procedure (Version A) on 15 Jan 2026.";
+  const original = zh + "\n" + en;
+  const d = prepareAgenda([{ number: 3, tables: [table(original)] }]);
+  assert.equal(d[0].topic, "軌旁安裝一致性測試程序");
+  assert.equal(d[0].topicEn, "Wayside Concordance Test Procedure");
+  assert.equal(d[0].sourceText, zh);
+  assert.equal(d[0].sourceTextEn, en);
+  assert.match(d[0].summary, /0000001/);
+  assert.match(d[0].summaryEn, /15 Jan 2026/);
+  assert.equal(d[0].description, "");
+  assert.equal(extractTopic("CTC 測試", "zh", true), "CTC 測試");
+  assert.equal(
+    extractTopic("No identifiable document name", "en"),
+    "No identifiable document name",
+  );
+});
+test("English summary does not separate a day number from the month", () => {
+  const s = summarize(
+    "Background. Prior work. Already submitted revision C on 25. June. Pending review. Already submitted on 24. Aug.",
+    "en",
+  );
+  assert.match(s, /25\. June/);
+  assert.match(s, /24\. Aug/);
 });
