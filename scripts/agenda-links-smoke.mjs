@@ -12,7 +12,7 @@ try{
  await page.reload();await page.locator('[data-prepare-ppt]').click();
  await expect(page.locator('[name="agenda-link-0"]')).toHaveValue('');await expect(page.locator('[name="agenda-link-1"]')).toHaveValue('');
  const fields=await page.locator('.agenda-preview article').first().locator('.bilingual-grid label').evaluateAll(nodes=>nodes.map(n=>n.firstChild.textContent));
- assert.deepEqual(fields,['Topic','議題','Key points','重點','Owner','負責人']);
+ assert.deepEqual(fields,['議題','Topic','重點','Key points','負責人','Owner']);
  await page.getByRole('button',{name:'確認建立紀錄 / Apply agenda'}).click();await expect(page.locator('dialog')).not.toBeVisible();await expect(page.locator('.issue')).toHaveCount(2);
  await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
  const read=()=>page.evaluate(async()=>{const{readWorkspace}=await import('/src/storage.js');return(await readWorkspace()).state;});
@@ -26,5 +26,5 @@ try{
  await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');const final=await read();
  assert.equal(final.meetings[1].entries.length,2);assert.equal(final.meetings[1].entries[0].description,'Recorded discussion');
  assert.deepEqual(final.meetings[0],old);
- console.log('PASS: ambiguous duplicate names import independently; repeat preparation uniquely updates sources and preserves discussion; English-left Chinese-right labels');
+ console.log('PASS: ambiguous duplicate names import independently; repeat preparation uniquely updates sources and preserves discussion; Chinese-left English-right labels');
 }finally{await browser.close();}
