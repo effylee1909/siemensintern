@@ -66,11 +66,11 @@ function shortTitle(text, lang) {
   return s + "…";
 }
 // Prefer source phrases and explicitly confirmed topic labels; never translate.
-const zhEnd = "(?:一致性測試程序|測試程序|測試計畫|測試報告|安全文件|聯合會勘|現場會勘|施工計畫|施工時程|切換時程|會議紀錄|測試紀錄|軌道佈置圖|軌道配置圖|聯鎖圖表|設計圖說|設計文件|審查意見|安裝進度|施工進度|測試進度|測試排程|介面協調|設備安裝|設備測試|驗收測試|功能測試|整合測試|系統測試|作業行程|更新數量|教育訓練|警報秒數|切換策略|軟體更新|受損事件|測試|計畫|程序|報告|時程)";
+const zhEnd = "(?:一致性測試程序|測試程序|測試計畫|測試報告|安全文件|聯合會勘|現場會勘|施工計畫|施工時程|切換時程|會議紀錄|測試紀錄|軌道佈置圖|軌道配置圖|聯鎖圖表|設計圖說|設計文件|審查意見|安裝進度|施工進度|測試進度|測試排程|介面協調|設備安裝|設備測試|驗收測試|功能測試|整合測試|系統測試|作業行程|更新數量|操作教育訓練相關意見|教育訓練|切換時程|切換測試|文件時程|警報秒數|切換策略|軟體更新|受損事件|測試|計畫|程序|報告|時程)";
 const zhAction = /(?:提送|提交|修訂|更新|提供|確認|審查|辦理|安排|進行|完成|討論|要求|追蹤|協調|有關|關於)/g;
 function narrative(text, lang) {
   return lang === "zh"
-    ? /已於|已經|目前|預計|預定|請|待|提送|提交|發文|辦理|安排|進行|完成|收到/.test(text)
+    ? /已於|已經|目前|預計|預定|請|待|提送|提交|發文|辦理|安排|進行|完成|收到|調整|配合|僅能|難以|指示|不得|依據/.test(text)
     : /\b(?:has|have|had|will|shall|should|must|received|submitted|sent|requested|currently|pending|kindly|please|arrange|conduct)\b/i.test(text);
 }
 export function extractTopic(text, lang, explicit = false) {
@@ -84,6 +84,20 @@ export function extractTopic(text, lang, explicit = false) {
         /(?:施作|施工|作業)/.test(text) &&
         /(?:每週|跨[一二三四五六日]|配合|僅能|時段|時間)/.test(text))
       return "夜班施工時間";
+    // General work themes, before narrative verbs can hide the real subject.
+    const themes = [
+      [/(?:切換|切換策略)/, /(?:策略|工作面|同步推動)/, "切換策略"],
+      [/(?:聯鎖)?軟體/, /(?:修改|更新|增加.*條件|版本|版展示)/, "軟體更新"],
+      [/平交道/, /(?:警報|警告).*秒數|秒數.*(?:警報|警告)/, "平交道警報秒數"],
+      [/CVDU.*(?:操作)?(?:教育)?訓練/, /(?:意見|問題|回覆)/, "CVDU 操作教育訓練相關意見"],
+    ];
+    for (const [subject, detail, label] of themes)
+      if (subject.test(text) && detail.test(text)) {
+        const station = text.match(/[\u3400-\u9fff]{2,6}站(?=[^。；]{0,16}(?:聯鎖|軟體))/)?.[0] || "";
+        return label === "軟體更新" ? station + label : label;
+      }
+    const event = text.match(/([^，。；：\n]{1,30}?(?:受損事件|損壞事件))/);
+    if (event) return event[1].replace(/^(?:目前|已於)?\s*\d{1,2}[/-]\d{1,2}(?:凌晨|上午|下午|晚上)?\s*/, "").trim();
     const quantity = text.match(/((?:電鎖)?轉轍器(?:所需)?更新數量)/);
     if (quantity) return quantity[1];
     // Station lists can contain Chinese commas: extract before splitting clauses.
@@ -328,4 +342,13 @@ export function presentationMetadata(slides) {
       date = "";
   }
   return { number: number >= 1 && number <= 999999 ? number : 0, date };
+}
+
+// Name-only proposals: no changes to discussions, ownership, status or identities.
+export function proposeTopicNames(meeting) {
+  return meeting.entries.map(entry => ({
+    issueId: entry.issueId,
+    topic: extractTopic(entry.sourceText || entry.topic, "zh", !entry.sourceText),
+    topicEn: extractTopic(entry.sourceTextEn || entry.topicEn, "en", !entry.sourceTextEn),
+  }));
 }

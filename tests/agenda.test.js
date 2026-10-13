@@ -233,3 +233,19 @@ test('confirmed naming conventions handle night windows, multi-station activitie
   assert.equal(extractTopic('轉轍器一致性測試程序','zh',true),'轉轍器一致性測試程序');
   assert.equal(extractTopic('白天施工時間','zh',true),'白天施工時間');
 });
+
+test('name proposals cover broader work themes without mutating saved minutes', async () => {
+  const {proposeTopicNames}=await import('../src/agenda.js');
+  const sources = [
+    ['整體切換策略調整為於多個工作面同步推動作業', '切換策略'],
+    ['業主將指示是否修改軟體增加以下條件：項目待確認', '軟體更新'],
+    ['依據規範，平交道的警報秒數不得低於指定值', '平交道警報秒數'],
+    ['CVDU 操作教育訓練相關意見：等待回覆', 'CVDU 操作教育訓練相關意見'],
+    ['8/20凌晨甲站過軌管受損事件，已修復', '甲站過軌管受損事件'],
+  ];
+  const meeting={entries:sources.map(([source],i)=>({issueId:String(i),topic:source,sourceText:source,description:'saved discussion',note:'saved note',status:'closed',owner:'owner'}))};
+  const before=structuredClone(meeting);
+  const proposals=proposeTopicNames(meeting);
+  assert.deepEqual(proposals.map(p=>p.topic),sources.map(s=>s[1]));
+  assert.deepEqual(meeting,before);
+});

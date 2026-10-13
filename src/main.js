@@ -10,6 +10,7 @@ import {
 } from "./storage.js";
 import {
   prepareAgenda,
+  proposeTopicNames,
   applyPreparedAgenda,
   presentationMetadata,
 } from "./agenda.js";
@@ -184,7 +185,7 @@ function render() {
           `<button class="stat ${filter === s ? "selected" : ""}" data-filter="${s}"><span><i class="status-dot ${s}"></i>${label}</span><strong>${n.toString().padStart(2, "0")}</strong><small>${s === "closed" ? "下次會議不自動帶入" : s === "all" ? "追蹤本次所有討論" : "保留於下次會議"}</small></button>`,
       )
       .join("")}</div>
-<div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
+<div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="rename-topics" class="secondary">整理所有議題名稱 / Topic names</button><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
 <section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><div><button id="storage-info" class="text-button">儲存空間 / Storage</button> <button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data || p.blobId ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題"><div class="issue-scroll" role="region" aria-label="議題列表 / Topic list" tabindex="0" data-scroll-key="${esc(issueScrollKey)}">${
       list.length
         ? list
@@ -277,6 +278,22 @@ function chooseFile(accept, handler) {
   f.click();
 }
 function bind() {
+  $("#rename-topics").onclick = () => {
+    const meeting = current(), proposals = proposeTopicNames(meeting);
+    if (!proposals.length) return toast("本次會議尚無議題");
+    modal("整理本次所有議題名稱 / Review topic names",
+      `<p>依簡報原文重新整理所有議題的中英文名稱。可在此修正建議；只更新名稱，討論、備註與狀態會保留。</p><div class="import-list">${proposals.map((p,i) => {
+        const old=meeting.entries[i];
+        return `<article><h3>${i+1}. ${esc(old.topic || old.topicEn)}</h3><div class="bilingual-grid"><label class="field">新名稱 / Topic (ZH)<input name="rename-zh-${i}" value="${esc(p.topic)}"></label><label class="field">新名稱 / Topic (EN)<input name="rename-en-${i}" value="${esc(p.topicEn)}"></label></div><details><summary>來源原文 / Source</summary><pre>${esc(old.sourceText || old.topic)}</pre><pre>${esc(old.sourceTextEn || old.topicEn)}</pre></details></article>`;
+      }).join("")}</div><button type="submit" class="primary">套用所有名稱 / Apply names</button>`,
+      f => {
+        proposals.forEach((p,i) => {
+          const entry=meeting.entries.find(e=>e.issueId===p.issueId);
+          if(entry){entry.topic=String(f.get(`rename-zh-${i}`)||"").trim();entry.topicEn=String(f.get(`rename-en-${i}`)||"").trim();}
+        });
+        change();render();toast("本次所有議題名稱已更新");
+      });
+  };
   $("#storage-info").onclick = async () => {
     let info = {};
     try {
