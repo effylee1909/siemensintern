@@ -65,7 +65,7 @@ function shortTitle(text, lang) {
   if (lang === "en") s = s.replace(/\s+\S*$/, "");
   return s + "…";
 }
-// Extract only source phrases; never translate or invent a title.
+// Prefer source phrases and explicitly confirmed topic labels; never translate.
 const zhEnd = "(?:一致性測試程序|測試程序|測試計畫|測試報告|安全文件|聯合會勘|現場會勘|施工計畫|施工時程|切換時程|會議紀錄|測試紀錄|軌道佈置圖|軌道配置圖|聯鎖圖表|設計圖說|設計文件|審查意見|安裝進度|施工進度|測試進度|測試排程|介面協調|設備安裝|設備測試|驗收測試|功能測試|整合測試|系統測試|作業行程|更新數量|教育訓練|警報秒數|切換策略|軟體更新|受損事件|測試|計畫|程序|報告|時程)";
 const zhAction = /(?:提送|提交|修訂|更新|提供|確認|審查|辦理|安排|進行|完成|討論|要求|追蹤|協調|有關|關於)/g;
 function narrative(text, lang) {
@@ -79,6 +79,16 @@ export function extractTopic(text, lang, explicit = false) {
   // A real, concise Topic cell is authoritative; an action sentence isn't.
   if (explicit && !narrative(text, lang)) return shortTitle(text, lang);
   if (lang === "zh") {
+    // Semantic labels are limited to the user's confirmed naming convention.
+    if (/(?:晚上|夜間|夜班|凌晨)/.test(text) &&
+        /(?:施作|施工|作業)/.test(text) &&
+        /(?:每週|跨[一二三四五六日]|配合|僅能|時段|時間)/.test(text))
+      return "夜班施工時間";
+    const quantity = text.match(/((?:電鎖)?轉轍器(?:所需)?更新數量)/);
+    if (quantity) return quantity[1];
+    // Station lists can contain Chinese commas: extract before splitting clauses.
+    const trackside = text.match(/(?:提供|確認|安排|協調)\s*([^。；\n]{1,70}?工務軌旁作業行程)/);
+    if (trackside) return trackside[1].trim();
     // Work clause by clause so dates and letter references cannot enter the name.
     for (const clause of text.split(/[，。；：\n]/)) {
       if (/^(?:避免|以利|以免|以確認|為了|後續|剩餘|待關閉)/.test(clause.trim())) continue;

@@ -212,3 +212,24 @@ test('narrative Topic cells and standalone pages use subject phrases, while conc
   assert.equal(draft.topic,'系統整合測試報告');
   assert.equal(draft.sourceText,source);
 });
+
+test('confirmed naming conventions handle night windows, multi-station activities, and replacement quantities', () => {
+  // Synthetic content only; never include private uploaded minutes in fixtures.
+  const examples = [
+    ['目前甲分駐所僅能配合每週二跨三晚上至每週五跨六晚上施作，乙分駐所能配合其他夜間時段。', '夜班施工時間'],
+    ['懇請業主先行提供甲站、乙站工務軌旁作業行程，避免影響整體專案行程。', '甲站、乙站工務軌旁作業行程'],
+    ['懇請業主先行提供甲站，乙站工務軌旁作業行程，以利後續作業。', '甲站，乙站工務軌旁作業行程'],
+    ['懇請業主提供20站各站轉轍器所需更新數量 (含電鎖轉轍器)，以利後續作業。', '轉轍器所需更新數量'],
+  ];
+  for (const [source, expected] of examples) {
+    assert.equal(extractTopic(source,'zh'), expected);
+    assert.equal(extractTopic(source,'zh',true), expected);
+    const draft=prepareAgenda([{number:1,tables:[table(source)]}])[0];
+    assert.equal(draft.topic,expected);
+    assert.equal(draft.sourceText,source);
+    assert.equal(draft.description,'');
+  }
+  assert.equal(extractTopic('夜間施工測試計畫','zh',true),'夜間施工測試計畫');
+  assert.equal(extractTopic('轉轍器一致性測試程序','zh',true),'轉轍器一致性測試程序');
+  assert.equal(extractTopic('白天施工時間','zh',true),'白天施工時間');
+});
