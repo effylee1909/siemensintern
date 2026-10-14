@@ -62,10 +62,8 @@ try {
   assert.match(await page.locator("#agenda-count").innerText(), /已選 3/);
   await page.locator("#agenda-visible").click();
   await page.locator("[name=include-2]").uncheck();
-  assert.match(
-    await page.locator('[name="summaryEn-0"]').inputValue(),
-    /4 tests.*22 Oct/,
-  );
+  assert.equal(await page.locator('[name="summaryEn-0"]').count(), 0);
+  assert.equal(await page.locator('[name="ownerEn-0"]').count(), 0);
   assert.equal(
     await page.locator('[name="topicEn-0"]').inputValue(),
     "Equipment testing",
@@ -75,6 +73,7 @@ try {
     .getByRole("button", { name: "確認建立紀錄 / Apply agenda" })
     .click();
   assert.equal(await page.locator(".issue").count(), 1);
+  assert.match(await page.locator("[data-field=summaryEn]").inputValue(), /4 tests.*22 Oct/);
   assert.equal(await page.locator("[data-field=description]").inputValue(), "");
   assert.equal(
     await page.locator("[data-field=descriptionEn]").inputValue(),

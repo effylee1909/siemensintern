@@ -12,7 +12,7 @@ try{
  await page.reload();await page.locator('[data-prepare-ppt]').click();
  await expect(page.locator('[name="agenda-link-0"]')).toHaveValue('');await expect(page.locator('[name="agenda-link-1"]')).toHaveValue('');
  const fields=await page.locator('.agenda-preview article').first().locator('.bilingual-grid label').evaluateAll(nodes=>nodes.map(n=>n.firstChild.textContent));
- assert.deepEqual(fields,['議題','Topic','重點','Key points','負責人','Owner']);
+ assert.deepEqual(fields,['議題','Topic']);
  await page.getByRole('button',{name:'確認建立紀錄 / Apply agenda'}).click();await expect(page.locator('dialog')).not.toBeVisible();await expect(page.locator('.issue')).toHaveCount(2);
  await expect(page.locator('#save-state')).toHaveText('已儲存在此瀏覽器');
  const read=()=>page.evaluate(async()=>{const{readWorkspace}=await import('/src/storage.js');return(await readWorkspace()).state;});
