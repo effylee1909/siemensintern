@@ -10,5 +10,7 @@ test('template-style Word export fits landscape page, repeats table header, and 
  assert.match(xml,/<w:tblHeader\/>/);assert.match(xml,/<w:tblLayout w:type="fixed"/);assert.match(xml,/w:orient="landscape"/);
  assert.match(xml,/w:eastAsia="KaiTi"/);assert.match(xml,/討論 &amp; 決議/);assert.match(xml,/Discussion &lt;decision&gt;/);
  assert.ok(parts['word/footer1.xml']);assert.match(strFromU8(parts['word/_rels/document.xml.rels']),/footer1.xml/);
+ assert.doesNotMatch(xml,/議題 \/ Topic \(ZH\)|議題 \/ Topic \(EN\)/);
+ assert.match(xml,/議題 \/ Topic/);
  assert.deepEqual(meeting,before);
 });

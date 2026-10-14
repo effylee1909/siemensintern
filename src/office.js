@@ -1,3 +1,4 @@
+import { splitLanguages } from "./agenda.js";
 import { unzipSync, zipSync, strToU8, strFromU8 } from "fflate";
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
   A = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -203,7 +204,6 @@ const markers = {
 };
 function readBilingualCells(topic, description, note, owner) {
   if (
-    !topic?.includes(markers.topic) ||
     !description?.includes(markers.description)
   )
     return null;
@@ -215,9 +215,16 @@ function readBilingualCells(topic, description, note, owner) {
     category: "",
     status: "",
   };
+  // New exports show bilingual topic text directly; older labeled exports remain supported.
+  const plainTopic = !topic?.includes(markers.topic);
+  if (plainTopic) {
+    const languages = splitLanguages(topic || "");
+    result.topic = languages.zh;
+    result.topicEn = languages.en;
+  }
   const reverse = new Map(Object.entries(markers).map(([k, v]) => [v, k]));
   let key = "";
-  for (const line of [topic, description, note, owner].join("\n").split("\n")) {
+  for (const line of [plainTopic ? "" : topic, description, note, owner].join("\n").split("\n")) {
     if (line.startsWith("來源 / Source:")) {
       key = "";
       continue;
@@ -253,9 +260,9 @@ export function exportDocx(meeting) {
   };
   const row = (cells, header = false) => `<w:tr>${header ? '<w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>' : ''}${cells.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/><w:vAlign w:val="top"/>${header ? '<w:shd w:fill="E7E6E6"/>' : ''}</w:tcPr>${cell || paragraph("")}</w:tc>`).join("")}</w:tr>`;
   const statuses = {open:"進行中 / Open",blocked:"待協調 / Pending coordination",closed:"已關閉 / Closed"};
-  const table = `<w:tbl><w:tblPr><w:tblW w:w="14400" w:type="dxa"/><w:jc w:val="center"/><w:tblLayout w:type="fixed"/><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:color="000000"/>`).join("")}</w:tblBorders><w:tblCellMar><w:top w:w="100" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="100" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${row(["Item\n項次","Topic\n議題","Description\n內容","Note\n備註","PiC\n負責人"].map(v=>paragraph(v,{bold:true,center:true})),true)}${meeting.entries.map((e,i)=>row([
+  const table = `<w:tbl><w:tblPr><w:tblW w:w="14400" w:type="dxa"/><w:jc w:val="center"/><w:tblLayout w:type="fixed"/><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:color="000000"/>`).join("")}</w:tblBorders><w:tblCellMar><w:top w:w="100" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="100" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${row(["Item\n項次","議題 / Topic","Description\n內容","Note\n備註","PiC\n負責人"].map(v=>paragraph(v,{bold:true,center:true})),true)}${meeting.entries.map((e,i)=>row([
     paragraph(i+1,{center:true}),
-    field("topic",e)+field("topicEn",e)+field("category",e)+field("categoryEn",e),
+    paragraph(e.topic || "") + (e.topicEn ? paragraph(e.topicEn) : ""),
     field("summary",e)+field("summaryEn",e)+field("description",e)+field("descriptionEn",e),
     (e.status ? paragraph(markers.status,{bold:true,size:18,keep:true})+paragraph(statuses[e.status]||"") : "")+field("note",e)+field("noteEn",e)+(e.sourceSlides?.length ? paragraph(`來源 / Source: ${e.sourceFile||""} · Slides ${e.sourceSlides.join(", ")}`,{size:18,color:"555555"}) : ""),
     field("owner",e)+field("ownerEn",e),
