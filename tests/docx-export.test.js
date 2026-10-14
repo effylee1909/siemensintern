@@ -12,5 +12,7 @@ test('template-style Word export fits landscape page, repeats table header, and 
  assert.ok(parts['word/footer1.xml']);assert.match(strFromU8(parts['word/_rels/document.xml.rels']),/footer1.xml/);
  assert.doesNotMatch(xml,/議題 \/ Topic \(ZH\)|議題 \/ Topic \(EN\)/);
  assert.match(xml,/議題 \/ Topic/);
+ assert.doesNotMatch(xml,/\(ZH\)|\(EN\)/);
+ assert.match(xml,/負責人 \/ Owner/);
  assert.deepEqual(meeting,before);
 });

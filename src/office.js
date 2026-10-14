@@ -203,6 +203,26 @@ const markers = {
   status: "狀態 / Status",
 };
 function readBilingualCells(topic, description, note, owner) {
+  if (description?.includes("會議討論 / Discussion") && !description.includes(markers.description)) {
+    const result = { category: "", categoryEn: "", status: "" };
+    const set = (key, text) => { const parts=splitLanguages(text || "");result[key]=parts.zh;result[key+"En"]=parts.en; };
+    set("topic",topic);set("owner",owner);
+    const sections = (text) => {
+      const parts = {};let key="";
+      for(const line of (text||"").split("\n")) {
+        if(line === "簡報重點 / Slide key points") key="summary";
+        else if(line === "會議討論 / Discussion") key="description";
+        else if(line === "備註 / Note") key="note";
+        else if(line === "狀態 / Status") key="status";
+        else if(key) parts[key]=(parts[key] ? parts[key]+"\n" : "")+line;
+      }
+      return parts;
+    };
+    const body=sections(description), notes=sections(note);
+    set("summary",body.summary);set("description",body.description);set("note",notes.note);
+    result.status=/closed|已關閉/i.test(notes.status||"") ? "closed" : /pending|待協調/i.test(notes.status||"") ? "blocked" : /open|進行中/i.test(notes.status||"") ? "open" : "";
+    return result;
+  }
   if (
     !description?.includes(markers.description)
   )
@@ -254,18 +274,19 @@ export function exportDocx(meeting) {
   const widths = [750, 2850, 7150, 1825, 1825];
   const paragraph = (text, { bold = false, size = 21, color = "000000", center = false, keep = false } = {}) =>
     String(text ?? "").split("\n").map(line => `<w:p><w:pPr><w:spacing w:before="0" w:after="70" w:line="276" w:lineRule="auto"/>${center ? '<w:jc w:val="center"/>' : ''}${keep ? '<w:keepNext/>' : ''}</w:pPr><w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="KaiTi"/>${bold ? '<w:b/>' : ''}<w:color w:val="${color}"/><w:sz w:val="${size}"/><w:szCs w:val="${size}"/></w:rPr><w:t xml:space="preserve">${esc(line)}</w:t></w:r></w:p>`).join("");
-  const field = (key, entry) => {
-    if (!entry[key] && key !== "topic" && key !== "description") return "";
-    return paragraph(markers[key], {bold:true,size:18,color:"555555",keep:true}) + paragraph(entry[key] || "");
+  const bilingual = (entry, key, label, required=false) => {
+    if (!required && !entry[key] && !entry[key+"En"]) return "";
+    return paragraph(label,{bold:true,size:18,color:"555555",keep:true}) +
+      paragraph(entry[key] || "") + (entry[key+"En"] ? paragraph(entry[key+"En"]) : "");
   };
   const row = (cells, header = false) => `<w:tr>${header ? '<w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>' : ''}${cells.map((cell,i)=>`<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/><w:vAlign w:val="top"/>${header ? '<w:shd w:fill="E7E6E6"/>' : ''}</w:tcPr>${cell || paragraph("")}</w:tc>`).join("")}</w:tr>`;
   const statuses = {open:"進行中 / Open",blocked:"待協調 / Pending coordination",closed:"已關閉 / Closed"};
-  const table = `<w:tbl><w:tblPr><w:tblW w:w="14400" w:type="dxa"/><w:jc w:val="center"/><w:tblLayout w:type="fixed"/><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:color="000000"/>`).join("")}</w:tblBorders><w:tblCellMar><w:top w:w="100" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="100" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${row(["Item\n項次","議題 / Topic","Description\n內容","Note\n備註","PiC\n負責人"].map(v=>paragraph(v,{bold:true,center:true})),true)}${meeting.entries.map((e,i)=>row([
+  const table = `<w:tbl><w:tblPr><w:tblW w:w="14400" w:type="dxa"/><w:jc w:val="center"/><w:tblLayout w:type="fixed"/><w:tblBorders>${["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:color="000000"/>`).join("")}</w:tblBorders><w:tblCellMar><w:top w:w="100" w:type="dxa"/><w:left w:w="110" w:type="dxa"/><w:bottom w:w="100" w:type="dxa"/><w:right w:w="110" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${widths.map(w=>`<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${row(["Item\n項次","議題 / Topic","內容 / Description","備註 / Note","負責人 / Owner"].map(v=>paragraph(v,{bold:true,center:true})),true)}${meeting.entries.map((e,i)=>row([
     paragraph(i+1,{center:true}),
     paragraph(e.topic || "") + (e.topicEn ? paragraph(e.topicEn) : ""),
-    field("summary",e)+field("summaryEn",e)+field("description",e)+field("descriptionEn",e),
-    (e.status ? paragraph(markers.status,{bold:true,size:18,keep:true})+paragraph(statuses[e.status]||"") : "")+field("note",e)+field("noteEn",e),
-    field("owner",e)+field("ownerEn",e),
+    bilingual(e,"summary","簡報重點 / Slide key points")+bilingual(e,"description","會議討論 / Discussion",true),
+    (e.status ? paragraph(markers.status,{bold:true,size:18,keep:true})+paragraph((statuses[e.status]||"").replace(" / ","\n")) : "")+bilingual(e,"note","備註 / Note"),
+    paragraph(e.owner || "")+(e.ownerEn ? paragraph(e.ownerEn) : ""),
   ])).join("")}</w:tbl>`;
   const body = paragraph("會議紀錄 / Minute of Meeting",{bold:true,size:32,center:true,keep:true}) +
     paragraph(`會議名稱 / Meeting: ${meeting.title || ""}${meeting.titleEn ? " / " + meeting.titleEn : ""}`,{keep:true}) +
