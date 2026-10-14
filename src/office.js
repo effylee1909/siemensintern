@@ -264,7 +264,7 @@ export function exportDocx(meeting) {
     paragraph(i+1,{center:true}),
     paragraph(e.topic || "") + (e.topicEn ? paragraph(e.topicEn) : ""),
     field("summary",e)+field("summaryEn",e)+field("description",e)+field("descriptionEn",e),
-    (e.status ? paragraph(markers.status,{bold:true,size:18,keep:true})+paragraph(statuses[e.status]||"") : "")+field("note",e)+field("noteEn",e)+(e.sourceSlides?.length ? paragraph(`來源 / Source: ${e.sourceFile||""} · Slides ${e.sourceSlides.join(", ")}`,{size:18,color:"555555"}) : ""),
+    (e.status ? paragraph(markers.status,{bold:true,size:18,keep:true})+paragraph(statuses[e.status]||"") : "")+field("note",e)+field("noteEn",e),
     field("owner",e)+field("ownerEn",e),
   ])).join("")}</w:tbl>`;
   const body = paragraph("會議紀錄 / Minute of Meeting",{bold:true,size:32,center:true,keep:true}) +
