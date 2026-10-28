@@ -32,7 +32,7 @@ const saved = (p) =>
       document.querySelector("#save-state")?.textContent === "已儲存在此瀏覽器",
   );
 try {
-  await page.goto("http://127.0.0.1:5173");
+  await page.goto("http://127.0.0.1:5173/#meeting");
   await page.locator("#import-history").click();
   await page
     .getByRole("button", { name: "開始選取 PPT / Choose files" })
@@ -85,7 +85,7 @@ try {
   );
   const context = await browser.newContext(),
     p2 = await context.newPage();
-  await p2.goto("http://127.0.0.1:5173");
+  await p2.goto("http://127.0.0.1:5173/#meeting");
   await p2.locator("#restore").click();
   await writeFile("/tmp/capacity-full.zip", bytes);
   await p2.locator("#file").setInputFiles("/tmp/capacity-full.zip");
@@ -156,7 +156,7 @@ try {
       }),
     legacy,
   );
-  await p3.goto("http://127.0.0.1:5173");
+  await p3.goto("http://127.0.0.1:5173/#meeting");
   await p3.waitForFunction(async () => {
     const { readWorkspace } = await import("/src/storage.js");
     const p = (await readWorkspace()).state.meetings[0].presentations[0];

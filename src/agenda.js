@@ -164,7 +164,7 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           body = splitLanguages(text),
           responsible = splitLanguages(row[owner] || ""),
           rawStatus = row[status] || "";
-        const closed = /\bclosed\b|關閉/i.test(rawStatus),
+        const closed = !/not\s+closed|未關閉/i.test(rawStatus) && /\bclosed\b|已關閉|^關閉$/i.test(rawStatus),
           blocked = /pending|await|待協調/i.test(rawStatus),
           open = /\bopen\b|\bongoing\b|進行中/i.test(rawStatus);
         drafts.push({
@@ -269,7 +269,7 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
 export function applyPreparedAgenda(meeting, drafts, selections) {
   const updates = [];
   const ids = new Set();
-  selections.forEach(({ index, issueId }) => {
+  [...selections].sort((a,b) => a.index - b.index).forEach(({ index, issueId }) => {
     const draft = drafts[index];
     if (!draft) throw Error("議題選擇不正確");
     if (ids.has(issueId)) throw Error("同一個既有議題只能連結一次，請調整連結");
@@ -280,6 +280,7 @@ export function applyPreparedAgenda(meeting, drafts, selections) {
     updates.push({
       ...entry,
       issueId,
+      statusSuggestion: old && old.status !== "closed" && draft.status === "closed" ? "closed" : "",
       ...(old
         ? {
             description: old.description,
@@ -294,12 +295,9 @@ export function applyPreparedAgenda(meeting, drafts, selections) {
     });
   });
   if (!updates.length) throw Error("請至少選擇一個議題");
-  const result = meeting.entries.map(
-    (e) => updates.find((u) => u.issueId === e.issueId) || e,
-  );
-  for (const e of updates)
-    if (!result.some((x) => x.issueId === e.issueId)) result.push(e);
-  meeting.entries = result;
+  // Selected entries follow PPT order, including newly added topics.
+  // Unmentioned records retain their content and relative order at the end.
+  meeting.entries = [...updates, ...meeting.entries.filter(e => !ids.has(e.issueId))];
   return updates;
 }
 export function presentationMetadata(slides) {

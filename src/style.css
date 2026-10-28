@@ -1358,3 +1358,44 @@ dialog p {
 
 footer .page-privacy { margin-left: auto; text-align: right; letter-spacing: 0; }
 @media (max-width: 760px) { footer { flex-wrap: wrap; } footer .page-privacy { flex-basis: 100%; } }
+
+/* Meeting overview; meeting data and editor remain unchanged. */
+.content[hidden] { display: none !important; }
+.sidebar-view-nav { display: grid; gap: 8px; margin-top: 24px; flex-shrink: 0; }
+.overview-mode .sidebar > nav, .overview-mode .sidebar > .nav-title, .overview-mode .sidebar > .meeting-actions { display: none; }
+.home-view { padding: 32px 36px; }
+.home-heading h1 { margin: 0; }
+.home-heading p, .home-count { color: #536b7a; }
+.home-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0; }
+.home-actions button { flex: 1; }
+.home-continue { border: 1px solid #13867d; background: #f0faf7; padding: 24px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.home-continue h2 { font-size: 22px; margin: 8px 0; }
+.home-continue p { margin-bottom: 0; color: #536b7a; }
+.home-list-heading { margin: 32px 0 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.home-list-heading h2 { font-size: 23px; }
+.home-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.home-filters input, .home-filters select { padding: 10px; border: 1px solid #d9e4eb; border-radius: 6px; background: white; color: #334958; }
+.home-filters label { font-size: 13px; }
+.home-filters label input { margin-left: 5px; }
+.home-table-wrap { overflow-x: auto; border: 1px solid #dfe6ec; border-radius: 8px; background: white; }
+.home-table { width: 100%; border-collapse: collapse; min-width: 620px; color: #263e4d; font-size: 15px; }
+.home-table th { background: #f5f8fa; text-align: left; }
+.home-table td, .home-table th { padding: 18px; border-bottom: 1px solid #e2e9ef; vertical-align: top; }
+.home-table small { display: block; margin-top: 6px; color: #617686; }
+.home-table td:last-child { white-space: nowrap; }
+.home-empty { padding: 30px; background: white; border: 1px solid #dfe6ec; border-radius: 8px; }
+.home-demo, .status-review { padding: 16px; border: 1px solid #e0bc73; border-radius: 8px; background: #fff9ea; color: #775720; }
+.status-review { margin-bottom: 20px; }
+.status-review button { margin: 4px 8px 0 0; }
+.ppt-table-preview { margin: 12px 0; }
+.ppt-table-preview td { white-space: pre-wrap; }
+@media(max-width:760px) {
+ .home-view { padding: 22px 16px; }
+ .home-continue { flex-direction: column; align-items: stretch; }
+ .home-actions { flex-direction: column; }
+ .home-filters { width: 100%; }
+ .home-filters #home-search { width: 100%; }
+ .sidebar-view-nav { display: flex; margin-top: 12px; }
+}
+
+.status-card-warning { color: #8b5e16; font-size: 13px; font-weight: 600; margin: 8px 0; }

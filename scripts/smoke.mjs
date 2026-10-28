@@ -19,7 +19,7 @@ page.on("request", (r) => {
 });
 page.on("dialog", (d) => d.dismiss());
 try {
-  await page.goto("http://127.0.0.1:5173");
+  await page.goto("http://127.0.0.1:5173/#meeting");
   assert.equal(await page.locator(".issue").count(), 0);
   await page.getByRole("button", { name: "觀看示範 / View demo" }).click();
   await page.getByRole("heading", { name: "第 220 次週會" }).waitFor();

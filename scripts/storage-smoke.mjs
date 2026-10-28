@@ -16,7 +16,7 @@ const saved = (p) =>
       document.querySelector("#save-state")?.textContent === "已儲存在此瀏覽器",
   );
 try {
-  await page.goto("http://127.0.0.1:5173");
+  await page.goto("http://127.0.0.1:5173/#meeting");
   await page.locator("#load-demo").click();
   await page.locator("[data-field=description]").fill("沒有密碼的紀錄");
   await saved(page);
@@ -34,7 +34,7 @@ try {
   assert.ok(json.includes("沒有密碼的紀錄"));
   const other = await browser.newContext(),
     p2 = await other.newPage();
-  await p2.goto("http://127.0.0.1:5173");
+  await p2.goto("http://127.0.0.1:5173/#meeting");
   await p2.locator("#restore").click();
   await p2.locator("#file").setInputFiles({
     name: "backup.json",
@@ -53,7 +53,7 @@ try {
   await other.close();
   const tab = await context.newPage();
   tab.on("dialog", (d) => d.dismiss());
-  await tab.goto("http://127.0.0.1:5173");
+  await tab.goto("http://127.0.0.1:5173/#meeting");
   await page.locator("[data-field=description]").fill("主分頁更新");
   await saved(page);
   await tab.locator("[data-field=description]").fill("另一分頁不能覆寫");

@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test",
-    "test:browser": "node scripts/smoke.mjs && node scripts/agenda-smoke.mjs && node scripts/history-smoke.mjs && node scripts/storage-smoke.mjs && node scripts/issue-scroll-smoke.mjs && node scripts/capacity-smoke.mjs && node scripts/topic-names-smoke.mjs",
+    "test:browser": "node scripts/smoke.mjs && node scripts/agenda-smoke.mjs && node scripts/history-smoke.mjs && node scripts/storage-smoke.mjs && node scripts/issue-scroll-smoke.mjs && node scripts/capacity-smoke.mjs && node scripts/topic-names-smoke.mjs && node scripts/overview-smoke.mjs && node scripts/status-review-smoke.mjs",
     "build:pages": "vite build --base=/siemensintern/siemens_weekilymeeting/ && node scripts/pages-layout.mjs"
   },
   "dependencies": {

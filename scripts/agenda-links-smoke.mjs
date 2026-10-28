@@ -2,7 +2,7 @@ import {chromium,expect} from '@playwright/test';
 import assert from 'node:assert/strict';
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
 try{
- const page=await browser.newPage();await page.goto('http://127.0.0.1:5173');
+ const page=await browser.newPage();await page.goto('http://127.0.0.1:5173/#meeting');
  const old=await page.evaluate(async()=>{
   const{demo}=await import('/src/model.js');const{saveWorkspace}=await import('/src/storage.js');const s=demo();
   const past=s.meetings[0];past.entries=[{...past.entries[0],topic:'測試程序',topicEn:'Test Procedure'}];

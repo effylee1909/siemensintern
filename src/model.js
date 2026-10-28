@@ -84,6 +84,7 @@ export function nextMeeting(previous, date, title) {
       .filter((e) => e.status !== "closed")
       .map((e) => ({
         ...e,
+        statusSuggestion: "",
         description: "",
         descriptionEn: "",
         note: "",
@@ -206,6 +207,8 @@ export function validateState(s) {
     ids.add(m.id);
     const issues = new Set();
     for (const e of m.entries) {
+      if (e.statusSuggestion !== undefined && !["", "closed"].includes(e.statusSuggestion))
+        throw Error("議題狀態提醒格式不正確");
       if (
         typeof e.issueId !== "string" ||
         issues.has(e.issueId) ||

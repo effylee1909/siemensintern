@@ -28,7 +28,7 @@ function file(number, date) {
   };
 }
 try {
-  await page.goto("http://127.0.0.1:5173");
+  await page.goto("http://127.0.0.1:5173/#meeting");
   await page.getByRole("button", { name: "觀看示範 / View demo" }).click();
   await page.locator("#add-history").click();
   await page.locator("dialog [name=number]").fill("218");

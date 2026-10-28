@@ -1,4 +1,5 @@
 import "./style.css";
+import { homeMarkup } from "./home.js";
 import { backupArchive, restoreArchive, MAX_ARCHIVE } from "./archive.js";
 import {
   readWorkspace,
@@ -64,6 +65,8 @@ let state = blankWorkspace(),
   slideIndex = 0,
   dirty = false,
   isDemo = false;
+let homeView = location.hash !== "#meeting";
+const homeOptions = { query: "", from: "", to: "", order: "newest" };
 let revision = 0,
   generation = 0,
   saveTimer,
@@ -154,7 +157,7 @@ function render() {
   const previous = e && previousEntry(state, m.id, e.issueId);
   const index = state.meetings.findIndex((x) => x.id === m.id);
   $("#app").innerHTML =
-    `<aside class="sidebar"><a class="brand" href="#"><span class="brand-icon">週</span><span>週進度會議<small>Weekly Meeting</small></span></a><div class="nav-title"><div>會議紀錄<small>Minute of Meeting</small></div><span>${state.meetings.length}</span></div><nav aria-label="會議列表 / Meeting list" tabindex="0">${[
+    `<aside class="sidebar"><a class="brand" href="#"><span class="brand-icon">週</span><span>週進度會議<small>Weekly Meeting</small></span></a><div class="sidebar-view-nav"><button id="go-home" class="secondary">⌂ 首頁總覽</button><button id="go-meeting" class="text-button">會議紀錄 →</button></div><div class="nav-title"><div>會議紀錄<small>Minute of Meeting</small></div><span>${state.meetings.length}</span></div><nav aria-label="會議列表 / Meeting list" tabindex="0">${[
       ...state.meetings,
     ]
       .reverse()
@@ -192,7 +195,7 @@ function render() {
         ? list
             .map((x, i) => {
               const p = previousEntry(state, m.id, x.issueId);
-              return `<button class="issue ${x.issueId === entryId ? "selected" : ""}" data-entry="${esc(x.issueId)}"><div class="issue-top"><span class="issue-number">${String(m.entries.indexOf(x) + 1).padStart(2, "0")}</span><span class="badge ${x.status}">${statuses[x.status]}</span></div><h3>${esc(x.topic || "待補中文議題")}</h3><div class="topic-en">${esc(x.topicEn || "English title pending")}</div><p>${esc(x.description || x.summary || "等待本週討論紀錄")}</p><div class="issue-meta"><span>${esc(x.owner || "未指定負責人")}</span><span>${p ? "延續議題" : "本次新增"}</span></div></button>`;
+              return `<button class="issue ${x.issueId === entryId ? "selected" : ""}" data-entry="${esc(x.issueId)}"><div class="issue-top"><span class="issue-number">${String(m.entries.indexOf(x) + 1).padStart(2, "0")}</span><span class="badge ${x.status}">${statuses[x.status]}</span></div><h3>${esc(x.topic || "待補中文議題")}</h3>${x.statusSuggestion === "closed" && x.status !== "closed" ? '<div class="status-card-warning">簡報已關閉 · 待確認</div>' : ""}<div class="topic-en">${esc(x.topicEn || "English title pending")}</div><p>${esc(x.description || x.summary || "等待本週討論紀錄")}</p><div class="issue-meta"><span>${esc(x.owner || "未指定負責人")}</span><span>${p ? "延續議題" : "本次新增"}</span></div></button>`;
             })
             .join("")
         : '<div class="empty">沒有符合的議題<br><small>按「新增議題」即可直接編寫紀錄。</small></div>'
@@ -211,6 +214,15 @@ function render() {
             )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key point", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
     }</section></div><footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span><button id="privacy" class="text-button page-privacy">資料保護與使用說明 ↗</button></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
+  document.body.classList.toggle("overview-mode", homeView);
+  $(".content").hidden = homeView;
+  if (homeView) {
+    $("main header").insertAdjacentHTML("afterend", homeMarkup(state, selected, homeOptions, esc, isDemo));
+    $(".breadcrumb").textContent = "首頁 / 會議總覽";
+  }
+  const topBadge = $(".editor-top");
+  if (e?.statusSuggestion === "closed" && e.status !== "closed") topBadge.insertAdjacentHTML("afterend", '<section class="status-review" role="status"><strong>簡報標示已關閉，請確認 / Slides indicate Closed</strong><p>目前狀態維持原樣，確認後才會更改。</p><button id="accept-close" class="secondary">確認改為已關閉</button><button id="keep-status" class="text-button">維持目前狀態</button></section>');
+  history.replaceState(null, "", homeView ? "#home" : "#meeting");
   bind();
   const issuePane = $(".issue-scroll");
   if (issuePane)
@@ -278,7 +290,34 @@ function chooseFile(accept, handler) {
   };
   f.click();
 }
+function openMeeting(id) {
+  if (!state.meetings.some(m => m.id === id)) return;
+  selected = id; homeView = false; entryId = null; filter = "all"; query = "";
+  change(); render();
+}
 function bind() {
+  $("#go-home").onclick = () => { homeView = true; render(); };
+  $("#go-meeting").onclick = () => openMeeting(selected);
+  $(".brand").onclick = ev => { ev.preventDefault(); homeView = true; render(); };
+  document.querySelectorAll('[data-home-open]').forEach(b => b.onclick = () => openMeeting(b.dataset.homeOpen));
+  if (homeView) {
+    $("#home-first")?.addEventListener('click', () => { homeView = false; render(); $("#edit-meeting").click(); });
+    $("#home-history").onclick = () => $("#add-history").click();
+    $("#home-upload").onclick = () => $("#import-history").click();
+    $("#home-privacy").onclick = () => $("#privacy").click();
+    $("#home-demo")?.addEventListener('click', () => $("#load-demo")?.click());
+    $("#home-search").oninput = ev => {
+      const pos = ev.target.selectionStart; homeOptions.query = ev.target.value;
+      render(); $("#home-search").focus(); $("#home-search").setSelectionRange(pos, pos);
+    };
+    for (const [id,key] of [['home-from','from'],['home-to','to'],['home-order','order']])
+      $("#"+id).onchange = ev => { homeOptions[key] = ev.target.value; render(); };
+  }
+  for (const [id, accept] of [['accept-close',true],['keep-status',false]]) $("#"+id)?.addEventListener('click', () => {
+    const entry = current().entries.find(e => e.issueId === entryId);
+    if (accept) entry.status = "closed";
+    delete entry.statusSuggestion; change(); render();
+  });
   $("#rename-topics").onclick = () => {
     const meeting = current(), proposals = proposeTopicNames(meeting);
     if (!proposals.length) return toast("本次會議尚無議題");
@@ -409,6 +448,7 @@ function bind() {
   document.querySelectorAll("[data-meeting]").forEach(
     (b) =>
       (b.onclick = () => {
+        homeView = false;
         selected = b.dataset.meeting;
         filter = "all";
         query = "";
@@ -444,6 +484,7 @@ function bind() {
     el.oninput = () => {
       current().entries.find((e) => e.issueId === entryId)[el.dataset.field] =
         el.value;
+      if (el.dataset.field === "status") delete current().entries.find(e => e.issueId === entryId).statusSuggestion;
       const card = document.querySelector(".issue.selected");
       if (card) {
         if (el.dataset.field === "topic")
@@ -658,6 +699,7 @@ function newMeeting() {
         throw Error("此會議次數已存在");
       if (!f.get("carry")) m.entries = [];
       addMeeting(state, m);
+      homeView = false;
       selected = m.id;
       entryId = null;
       query = "";
@@ -733,6 +775,7 @@ async function uploadPpt(
     slides,
   };
   (meeting.presentations ??= []).push(p);
+  homeView = false;
   selected = meeting.id;
   presentationId = p.id;
   slideIndex = 0;
@@ -764,6 +807,8 @@ async function preparePpt(p) {
     return toast(
       "未辨識到可整理的議題，請參考原文或手動新增 / No topics detected",
     );
+  const tablePreview = p.slides.flatMap(slide => (slide.tables || []).map((rows, index) =>
+    `<details class="ppt-table-preview"><summary>第 ${slide.number} 頁 · 表格 ${index + 1}（${Math.max(0, rows.length - 1)} 列） / Source table</summary><div class="home-table-wrap"><table class="home-table">${rows.map((row,i)=>`<tr>${row.map(cell=>`<${i ? "td" : "th"}>${esc(cell).replaceAll("\n","<br>")}</${i ? "td" : "th"}>`).join("")}</tr>`).join("")}</table></div></details>`)).join("");
   const metadata = presentationMetadata(p.slides),
     idx = state.meetings.indexOf(meeting),
     known = new Map();
@@ -821,7 +866,7 @@ async function preparePpt(p) {
   suggestions.filter(Boolean).forEach(id => counts.set(id, (counts.get(id) || 0) + 1));
   modal(
     "PPT 整理成會議紀錄 / Prepare minutes",
-    `${metadata.number || metadata.date ? `<div class="detected-metadata"><p>簡報封面 / Detected cover: 第 ${metadata.number || "—"} 次 · ${metadata.date || "—"}</p><label class="check"><input name="useMetadata" type="checkbox" ${fits && !meeting.entries.length ? "checked" : ""} ${fits ? "" : "disabled"}> 採用封面的次數、日期與雙語會議名稱 / Use cover metadata</label>${fits ? "" : "<p>封面資料不足或與其他會議衝突，請使用「編輯會議資料」確認。 / Check meeting metadata manually.</p>"}</div>` : ""}<p>共 ${p.slides.length} 頁簡報，辨識 ${drafts.length} 個候選議題（不是只取 3 個議題）。請勾選本次要討論的議題。系統自動對應本次與上次未關閉議題、更新簡報重點並加入新議題；不確定的對應可展開調整。重點與負責人請在會議紀錄頁面編輯。原始中英文完整保留，會議討論欄留白。</p><p class="warning">每議題最多摘錄 3 個重點，議題數量沒有 3 個的限制。本機摘錄式摘要，不是 AI 翻譯。可見頁包含關閉議題也會預選；隱藏頁與附錄可另外勾選；圖表內容需人工核對。<br>Extractive summary only. Review source text and fill missing translations.</p><div class="agenda-selection"><strong id="agenda-count"></strong><button type="button" id="agenda-all" class="secondary">全選所有議題 / Select all</button><button type="button" id="agenda-visible" class="secondary">選取可見頁 / Visible pages</button><button type="button" id="agenda-none" class="text-button">取消全選 / Clear</button></div><div class="import-list agenda-preview">${drafts
+    `${metadata.number || metadata.date ? `<div class="detected-metadata"><p>簡報封面 / Detected cover: 第 ${metadata.number || "—"} 次 · ${metadata.date || "—"}</p><label class="check"><input name="useMetadata" type="checkbox" ${fits && !meeting.entries.length ? "checked" : ""} ${fits ? "" : "disabled"}> 採用封面的次數、日期與雙語會議名稱 / Use cover metadata</label>${fits ? "" : "<p>封面資料不足或與其他會議衝突，請使用「編輯會議資料」確認。 / Check meeting metadata manually.</p>"}</div>` : ""}<p>共 ${p.slides.length} 頁簡報，辨識 ${drafts.length} 個候選議題（不是只取 3 個議題）。請勾選本次要討論的議題。系統自動對應本次與上次未關閉議題、更新簡報重點並加入新議題；不確定的對應可展開調整。重點與負責人請在會議紀錄頁面編輯。原始中英文完整保留，會議討論欄留白。</p><p class="warning">每議題最多摘錄 3 個重點，議題數量沒有 3 個的限制。本機摘錄式摘要，不是 AI 翻譯。可見頁包含關閉議題也會預選；隱藏頁與附錄可另外勾選；圖表內容需人工核對。<br>Extractive summary only. Review source text and fill missing translations.</p><div class="agenda-selection"><strong id="agenda-count"></strong><button type="button" id="agenda-all" class="secondary">全選所有議題 / Select all</button><button type="button" id="agenda-visible" class="secondary">選取可見頁 / Visible pages</button><button type="button" id="agenda-none" class="text-button">取消全選 / Clear</button></div>${tablePreview ? `<details class="source-tables"><summary>檢視簡報原始表格 / Review source tables</summary>${tablePreview}</details>` : ""}<div class="import-list agenda-preview">${drafts
       .map((e, i) => {
         // Ambiguous matches remain new topics until reviewed; never preselect
         // the same existing issue for multiple distinct presentation rows.
@@ -925,6 +970,7 @@ function historicalMeeting() {
           x.entries.length ||
           (x.presentations || []).length,
       );
+      homeView = false;
       selected = m.id;
       entryId = null;
       presentationId = null;

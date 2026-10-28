@@ -263,3 +263,24 @@ test('document schedule tables retain every row, dates and statuses without inve
  }
  assert.equal(drafts[0].topic,'文件1安全報告');assert.equal(drafts[0].topicEn,'Document 1 Safety Report');
 });
+
+test('import follows PPT order, retains unmentioned records, and only suggests closing existing issues',()=>{
+ const old={issueId:'old',topic:'Old',status:'open',description:'Saved discussion',descriptionEn:'Saved English',note:'Saved note',owner:'Owner'};
+ const unmentioned={issueId:'unmentioned',topic:'Still pending',status:'open',description:'Keep me'};
+ const meeting={entries:[old,unmentioned]};
+ const drafts=[{topic:'New first',status:'open',description:'',note:''},{topic:'Updated old',status:'closed',summary:'New progress',description:'',note:''}];
+ const updates=applyPreparedAgenda(meeting,drafts,[{index:1,issueId:'old'},{index:0,issueId:'new'}]);
+ assert.deepEqual(meeting.entries.map(e=>e.issueId),['new','old','unmentioned']);
+ assert.deepEqual(updates.map(e=>e.issueId),['new','old']);
+ const updated=meeting.entries[1];assert.equal(updated.status,'open');assert.equal(updated.statusSuggestion,'closed');assert.equal(updated.description,old.description);assert.equal(updated.note,old.note);assert.equal(updated.summary,'New progress');
+ assert.deepEqual(meeting.entries[2],unmentioned);
+ drafts[1].status='open';applyPreparedAgenda(meeting,drafts,[{index:1,issueId:'old'}]);
+ assert.equal(meeting.entries[0].statusSuggestion,'');
+});
+
+test('negative status text is never interpreted as a request to close',()=>{
+ for(const status of ['尚未關閉','Not closed']) {
+  const drafts=prepareAgenda([{number:1,tables:[[['Topic','Description','Status'],['Task','Current progress',status]]]}]);
+  assert.notEqual(drafts[0].status,'closed');
+ }
+});

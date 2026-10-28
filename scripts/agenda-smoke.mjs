@@ -37,7 +37,7 @@ const fixture = zipSync({
   ),
 });
 try {
-  await page.goto("http://127.0.0.1:5173");
+  await page.goto("http://127.0.0.1:5173/#meeting");
   await page.locator("#clear").click();
   await page.locator('dialog [name="date"]').fill("2026-09-09");
   await page.locator("dialog input[type=checkbox]").check();
