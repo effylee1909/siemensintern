@@ -249,3 +249,17 @@ test('name proposals cover broader work themes without mutating saved minutes', 
   assert.deepEqual(proposals.map(p=>p.topic),sources.map(s=>s[1]));
   assert.deepEqual(meeting,before);
 });
+
+test('document schedule tables retain every row, dates and statuses without inventing minutes fields',()=>{
+ const rows=Array.from({length:8},(_,i)=>[String(i+1),`文件${i+1}安全報告\nDocument ${i+1} Safety Report`,'2 Oct 2026',i===6?'29 Oct 2026':'Done']);
+ const drafts=prepareAgenda([{number:6,section:'第一階段\nProgress of Discussion on Key Issues',tables:[[['No','Document','Date by reviewer (new)','Status'],...rows]],content:'Document schedule'}],'p','synthetic.pptx');
+ assert.equal(drafts.length,8);
+ for(let i=0;i<8;i++){
+  assert.equal(drafts[i].sourceItem,String(i+1));
+  assert.match(drafts[i].sourceTextEn,/2 Oct 2026/);
+  assert.match(drafts[i].sourceTextEn,i===6?/29 Oct 2026/:/Done/);
+  assert.equal(drafts[i].owner,'');assert.equal(drafts[i].description,'');assert.equal(drafts[i].note,'');
+  assert.equal(drafts[i].status,'');assert.deepEqual(drafts[i].sourceSlides,[6]);
+ }
+ assert.equal(drafts[0].topic,'文件1安全報告');assert.equal(drafts[0].topicEn,'Document 1 Safety Report');
+});

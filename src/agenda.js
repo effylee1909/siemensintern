@@ -142,17 +142,25 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
       if (table.length < 2) continue;
       const header = table[0].map((s) => s.toLowerCase().replace(/\s/g, ""));
       const desc = header.findIndex((s) => /辦理內容|description/.test(s)),
+        document = header.findIndex((s) => /^(?:documents?|documentname|文件|文件名稱|文件名)$/.test(s)),
         topic = header.findIndex((s) => /議題|topic|執行工作及待辦/.test(s)),
         owner = header.findIndex((s) =>
           /actionowner|requiredby|負責人|^pic$|^owner$/.test(s),
         ),
         status = header.findIndex((s) => /status|狀態/.test(s)),
         item = header.findIndex((s) => /^(項次|item|no\.?)/.test(s));
-      if (desc < 0 && topic < 0) continue;
+      const titleColumn = topic >= 0 ? topic : document;
+      if (desc < 0 && titleColumn < 0) continue;
       for (const row of table.slice(1)) {
-        const text = row[desc >= 0 ? desc : topic] || "";
+        const documentTable = desc < 0 && document >= 0;
+        const text = documentTable
+          ? [row[titleColumn] || "", ...row.flatMap((cell, index) =>
+              index !== titleColumn && index !== item && cell?.trim()
+                ? [`${table[0][index] || "Column " + (index + 1)}: ${cell}`] : [])].join("\n")
+          : row[desc >= 0 ? desc : titleColumn] || "";
+        if (documentTable && !row[titleColumn]?.trim()) continue;
         if (!text.trim()) continue;
-        const title = splitLanguages(topic >= 0 ? row[topic] : text),
+        const title = splitLanguages(titleColumn >= 0 ? row[titleColumn] : text),
           body = splitLanguages(text),
           responsible = splitLanguages(row[owner] || ""),
           rawStatus = row[status] || "";
@@ -160,8 +168,8 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           blocked = /pending|await|待協調/i.test(rawStatus),
           open = /\bopen\b|\bongoing\b|進行中/i.test(rawStatus);
         drafts.push({
-          topic: extractTopic(title.zh, "zh", topic >= 0) || "",
-          topicEn: extractTopic(title.en, "en", topic >= 0) || "",
+          topic: extractTopic(title.zh, "zh", titleColumn >= 0) || "",
+          topicEn: extractTopic(title.en, "en", titleColumn >= 0) || "",
           summary: summarize(body.zh),
           summaryEn: summarize(body.en, "en"),
           description: "",
@@ -182,7 +190,7 @@ export function prepareAgenda(slides, presentationId = "", fileName = "") {
           recommended: !slide.hidden && !slide.annex,
           hidden: !!slide.hidden,
           annex: !!slide.annex,
-          confidence: desc >= 0 ? "table" : "review",
+          confidence: desc >= 0 || document >= 0 ? "table" : "review",
         });
         made = true;
       }
