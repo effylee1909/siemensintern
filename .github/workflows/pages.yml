@@ -1,4 +1,4 @@
-name: Deploy weekly meeting website
+name: Deploy Siemens websites
 on:
   push:
     branches: [main]
@@ -29,7 +29,7 @@ jobs:
   deploy:
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}siemens_weekilymeeting/
+      url: ${{ steps.deployment.outputs.page_url }}siemens_docstorage/
     runs-on: ubuntu-latest
     needs: build
     steps:

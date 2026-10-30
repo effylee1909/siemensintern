@@ -102,3 +102,15 @@ PPT 原檔以獨立二進位檔儲存在 IndexedDB，不隨每次文字編輯重
 確認 PPT 匯入時，選取的議題依簡報頁序／表格列序排列，既有與新增議題交錯排序；本次沒有選到的原有紀錄保留在後方，相對順序不變。既有討論、備註、負責人與狀態保留。若簡報明確標示 Closed／已關閉，而本次紀錄尚未關閉，議題列表與編輯區會提示確認，可選擇「確認改為已關閉」或「維持目前狀態」；不自動關閉既有議題。提醒為可選欄位，舊工作區／備份無須轉版。
 
 PPT 整理預覽可展開「檢視簡報原始表格」，核對每頁的完整列、欄及日期；不執行表格或文件中的指令。圖片與嵌入物件仍不做 OCR。實際第 222 次 PPT 的第 6 頁原生文件時程表（8 列）已在本機驗證，真實附件與內容不納入儲存庫。
+
+## 文件整理存放：siemens_docstorage
+
+新增獨立文件管理網站，保留既有週會網站。發布路徑：
+`https://effylee1909.github.io/siemensintern/siemens_docstorage/`。
+
+- 多檔選取／拖曳上傳，每份上限 100 MB；按分類整理，編輯檔名、標籤，搜尋、收藏、排序、下載原檔與確認後刪除。
+- IndexedDB 保存文件原檔及資訊，重新整理可接續；與週會資料庫分開。文件不會上傳 GitHub，沒有登入、多人共用或跨裝置同步。清除網站資料會刪除本機文件，請定期備份。
+- 完整 JSON 備份包含原檔，未加密。原檔總量限 350 MB，還原檔案上限 500 MB；更大型文件需分別下載。還原會新增文件並保留現有資料，重複還原會產生副本。整份備份先驗證再以單一交易寫入。
+- 開發：`npm ci` 後 `npm run dev -- --port 5173`，於本機開啟 `/siemens_docstorage/`。
+- 瀏覽器測試：啟動 dev 後執行 `npm run test:docstorage`，需 Chromium，可用 `CHROMIUM_PATH` 指定。包含上傳、編輯、收藏、搜尋、資料保留、下載位元組一致、備份還原及錯誤格式拒絕與手機版面。
+- `npm run build:pages` 同時輸出 `dist/siemens_weekilymeeting/` 與 `dist/siemens_docstorage/`；既有 Pages workflow 推送 main 後發布整個 dist。需在 Settings → Pages 選擇 GitHub Actions，實際上線以 Actions 部署結果為準。

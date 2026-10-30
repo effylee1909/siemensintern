@@ -1,0 +1,31 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+try{
+ await page.goto(process.env.DOCSTORAGE_URL||'http://127.0.0.1:5173/siemens_docstorage/');
+ await page.getByText('讓文件各就各位').waitFor();
+ assert.equal(await page.locator('.stats').evaluate(el=>getComputedStyle(el).display),'grid');
+ await page.locator('#file-input').setInputFiles([{name:'report.txt',mimeType:'text/plain',buffer:Buffer.from('文件測試 hello')},{name:'notes.csv',mimeType:'text/csv',buffer:Buffer.from('a,b\n1,2')}]);
+ await page.getByText('已儲存 2 份文件。').waitFor();
+ assert.equal(await page.locator('.file').count(),2);
+ await page.locator('.file').filter({hasText:'report.txt'}).getByRole('button',{name:'編輯',exact:true}).click();
+ await page.locator('[name=name]').fill('年度報告.txt');await page.locator('[name=category]').selectOption('專案資料');await page.locator('[name=tags]').fill('重要, 2026');await page.getByRole('button',{name:'儲存',exact:true}).click();
+ await page.getByText('文件資訊已更新。').waitFor();
+ await page.getByRole('button',{name:'收藏 年度報告.txt',exact:true}).click();
+ await page.reload();await page.locator('#count').filter({hasText:'2'}).waitFor();
+ await page.locator('#search').fill('重要');assert.equal(await page.locator('.file').count(),1);
+ const [download]=await Promise.all([page.waitForEvent('download'),page.locator('.file').getByRole('button',{name:'下載',exact:true}).click()]);
+ assert.equal(download.suggestedFilename(),'年度報告.txt');assert.equal(await readFile(await download.path(),'utf8'),'文件測試 hello');
+ await page.locator('#search').fill('');
+ const [backup]=await Promise.all([page.waitForEvent('download'),page.locator('#backup').click()]);
+ const backupPath=await backup.path();
+ await page.locator('.file').filter({hasText:'年度報告.txt'}).getByRole('button',{name:'刪除',exact:true}).click();await page.getByText('文件已刪除。').waitFor();
+ await page.locator('#restore-file').setInputFiles(backupPath);await page.getByText('已還原 2 份文件。').waitFor();assert.equal(await page.locator('.file').count(),3);
+ await page.locator('#restore-file').setInputFiles({name:'bad.json',mimeType:'application/json',buffer:Buffer.from('{"format":"bad"}')});await page.getByRole('status').filter({hasText:'不支援的備份格式'}).waitFor();assert.equal(await page.locator('.file').count(),3);
+ await page.screenshot({path:'/tmp/docstorage-desktop.png',fullPage:true});
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/docstorage-mobile.png',fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ assert.deepEqual(errors,[]);console.log('PASS upload, editing, tags, search, favorite, persistence, exact download, backup restore, malformed backup, mobile layout');
+}finally{await browser.close();}
