@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#008486" />
+    <title>siemens_docstorage · 文件關聯工作台</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <aside>
+      <a class="brand" href="/"
+        ><b>▥</b><span>文件關聯工作台<small>siemens_docstorage</small></span></a
+      >
+      <div class="nav-label">DOCUMENT WORKSPACE</div>
+      <nav>
+        <button data-view="all" class="active">▤ <span>全部文件</span></button
+        ><button data-view="letters">⇄ <span>公文往來</span></button
+        ><button data-view="technical">▱ <span>技術文件</span></button
+        ><button data-view="pending">
+          ◇ <span>待核對分類</span><small id="pending-count">0</small>
+        </button>
+      </nav>
+      <div class="nav-label">管理工具</div>
+      <button id="settings-open" class="nav-button">⚙ 分類設定</button
+      ><button id="demo" class="nav-button">＋ 載入虛構範例</button>
+      <div class="sidebar-note">
+        <span class="dot"></span> 獨立後端儲存
+        <p>原檔、翻譯與關聯集中保存。<br />不寫入 GitHub，不自動翻譯。</p>
+        <small>DEMO · 本機規則辨識<br />承辦人／CC 留待後續設計</small>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <div class="eyebrow">DOCUMENT INTELLIGENCE · DEMO</div>
+          <h1>把分散文件，串成完整脈絡。</h1>
+          <p>上傳原文 → 查看分類建議 → 核對文號 → 追蹤往來歷程</p>
+        </div>
+        <button class="primary" id="upload-open">＋ 上傳文件</button>
+      </header>
+      <div class="demo-notice">
+        初版使用本機文字擷取、OCR 與規則分類，不連接外部
+        AI。所有自動判斷均待核對；你可以隨時手動調整。
+      </div>
+      <section class="stats">
+        <article>
+          <span>文件紀錄</span><strong id="stat-total">0</strong
+          ><small>原文與翻譯歸在同一筆</small>
+        </article>
+        <article>
+          <span>待核對分類</span><strong id="stat-pending">0</strong
+          ><small>確認分類與辨識內容</small>
+        </article>
+        <article>
+          <span>辨識處理中</span><strong id="stat-jobs">0</strong
+          ><small>單一背景佇列，本機執行</small>
+        </article>
+        <article>
+          <span>原檔儲存量</span><strong id="stat-size">0 B</strong
+          ><small>伺服器檔案儲存</small>
+        </article>
+      </section>
+      <div id="message" role="status" aria-live="polite"></div>
+      <section class="library">
+        <div class="library-title">
+          <h2 id="view-title">全部文件</h2>
+          <span id="result-count"></span
+          ><span class="sync-label">● 每 5 秒更新清單</span>
+        </div>
+        <div class="filters">
+          <input
+            id="search"
+            type="search"
+            placeholder="搜尋文號、主旨、客戶或全文…"
+            aria-label="搜尋文件"
+          /><select id="customer" aria-label="往來對象">
+            <option value="">所有往來對象</option></select
+          ><select id="category" aria-label="文件分類">
+            <option value="">所有分類</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>公文／文件</th>
+                <th>往來對象</th>
+                <th>系統分類</th>
+                <th>日期／版次</th>
+                <th>核對狀態</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div id="empty" class="empty" hidden>
+          <div>▱</div>
+          <h3>先上傳一份文件，開始整理</h3>
+          <p>電子 PDF、掃描 PDF 與翻譯 Word，集中在同一個工作台。</p>
+          <button id="empty-upload" class="primary">上傳第一份文件</button
+          ><button id="empty-demo">先看虛構範例</button>
+        </div>
+        <div class="pagination">
+          <button id="prev">← 上一頁</button><span id="page-info"></span
+          ><button id="next">下一頁 →</button>
+        </div>
+      </section>
+      <footer>
+        siemens_docstorage <span>獨立系統 · 資料庫與原檔由後端保存</span>
+      </footer>
+    </main>
+    <dialog id="upload-dialog">
+      <form id="upload-form">
+        <div class="dialog-heading">
+          <h2>上傳文件</h2>
+          <button type="button" data-close="upload-dialog">✕</button>
+        </div>
+        <p class="muted">
+          上傳即保存至此 Demo 的後端；不會傳至 GitHub 或外部辨識服務。
+        </p>
+        <label
+          >新增紀錄或補充既有公文<select name="record_id" id="upload-target">
+            <option value="">新增文件紀錄</option>
+          </select></label
+        ><label
+          >檔案用途<select name="role" id="upload-role">
+            <option value="original">原文／技術文件</option>
+            <option value="translation">已翻譯的 Word</option>
+            <option value="attachment">附件</option>
+          </select></label
+        ><label class="dropzone"
+          >＋ 選取 PDF 或 Word .docx<input
+            name="files"
+            type="file"
+            accept=".pdf,.docx"
+            multiple
+            required
+        /></label>
+        <p class="muted">
+          每份最多 100 MB、150 頁 PDF；一次最多 20 份。初版不支援舊
+          .doc。翻譯請先選擇所屬公文，避免誤配。新增時每個檔案各建立一筆紀錄。
+        </p>
+        <div class="dialog-actions">
+          <button type="button" data-close="upload-dialog">取消</button
+          ><button class="primary" type="submit">上傳並辨識</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="detail-dialog" class="detail-dialog">
+      <div id="detail"></div>
+    </dialog>
+    <dialog id="settings-dialog">
+      <form id="settings-form">
+        <div class="dialog-heading">
+          <h2>分類設定</h2>
+          <button type="button" data-close="settings-dialog">✕</button>
+        </div>
+        <p class="muted">
+          名稱比對協助辨識收發文與往來對象。不會自動改寫已存文件；可在文件內重新辨識。
+        </p>
+        <label
+          >我方單位名稱／簡稱（每行一個）<textarea
+            name="own_names"
+            rows="3"
+          ></textarea></label
+        ><label
+          >客戶與別名（每行：正式名稱 | 簡稱 | 英文名）<textarea
+            name="customers"
+            rows="6"
+            placeholder="範例客戶 | 客戶簡稱 | Example Client"
+          ></textarea>
+        </label>
+        <div class="dialog-actions">
+          <button class="primary" type="submit">儲存設定</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="login-dialog">
+      <form id="login-form">
+        <h2>登入 Demo</h2>
+        <label
+          >存取密碼<input
+            name="token"
+            type="password"
+            required
+            autocomplete="current-password"
+        /></label>
+        <p id="login-error" role="alert"></p>
+        <button class="primary">登入</button>
+      </form>
+    </dialog>
+    <script type="module" src="/static/main.js"></script>
+  </body>
+</html>

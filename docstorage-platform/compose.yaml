@@ -1,0 +1,24 @@
+services:
+  docstorage:
+    image: siemens-docstorage:demo
+    build: .
+    ports:
+      - "127.0.0.1:${DOCSTORAGE_PORT:-8080}:8080"
+    environment:
+      DOCSTORAGE_TOKEN: "${DOCSTORAGE_TOKEN:?請設定 Demo 存取密碼}"
+    volumes:
+      - documents:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+volumes:
+  documents:
