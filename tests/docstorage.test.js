@@ -24,3 +24,21 @@ test("reply classification takes precedence over review keywords and references 
   assert.equal(m.references[0].status, "pending");
   assert.equal(norm("工字第115001號"), norm("工字115001號"));
 });
+
+import {
+  directoryContextIssue,
+  directoryPickerError,
+} from "../siemens_docstorage/directory-access.js";
+test("folder access explains embedded, insecure, unsupported and missing gesture contexts", () => {
+  const good = { secure: true, topLevel: true, supported: true, active: true };
+  assert.equal(directoryContextIssue(good), "");
+  assert.match(directoryContextIssue({ ...good, topLevel: false }), /內嵌/);
+  assert.match(directoryContextIssue({ ...good, secure: false }), /HTTPS/);
+  assert.match(directoryContextIssue({ ...good, supported: false }), /Chrome/);
+  assert.match(directoryContextIssue({ ...good, active: false }), /直接點擊/);
+});
+test("folder rejection provides persistent actionable guidance without treating cancellation as a failure", () => {
+  for (const name of ["SecurityError", "NotAllowedError"])
+    assert.match(directoryPickerError({ name }), /尚未讀取或匯入文件/);
+  assert.equal(directoryPickerError({ name: "AbortError" }), "");
+});

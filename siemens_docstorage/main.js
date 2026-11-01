@@ -1,4 +1,8 @@
 import * as store from "./storage.js";
+import {
+  directoryContextIssue,
+  directoryPickerError,
+} from "./directory-access.js";
 import { extract } from "./extract.js";
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
@@ -298,12 +302,40 @@ $("#preview").onclick = safe(async (e) => {
         .join("") || "尚無辨識文字";
   }
 });
+const directoryHelp = document.createElement("section");
+directoryHelp.id = "directory-help";
+directoryHelp.className = "directory-help";
+directoryHelp.hidden = true;
+directoryHelp.setAttribute("role", "alert");
+$("header").after(directoryHelp);
+function showDirectoryHelp(message) {
+  directoryHelp.innerHTML = `<strong>無法開啟文件資料夾</strong><p>${esc(message)}</p><a class="button" href="https://effylee1909.github.io/siemensintern/siemens_docstorage/" target="_blank" rel="noopener noreferrer">在獨立分頁開啟網站 ↗</a><p class="muted">不需要重新上傳 PDF，也不要停用公司的安全設定。你仍可用「觀看虛構示範」查看介面。</p>`;
+  directoryHelp.hidden = false;
+  directoryHelp.scrollIntoView({ block: "nearest" });
+}
 $("#connect").onclick = safe(async () => {
   if (running || importing) throw Error("請先暫停並等候目前文件完成");
   if (dirty && !confirm("放棄未保存的修改？")) return;
-  if (!window.showDirectoryPicker)
-    throw Error("此瀏覽器不支援資料夾存取，請用電腦版 Chrome 或 Edge。");
-  const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+  const issue = directoryContextIssue({
+    secure: window.isSecureContext,
+    topLevel: window.self === window.top,
+    supported: typeof window.showDirectoryPicker === "function",
+    active: navigator.userActivation?.isActive,
+  });
+  if (issue) {
+    showDirectoryHelp(issue);
+    return;
+  }
+  let handle;
+  try {
+    // Call directly within the click gesture, before any asynchronous work.
+    handle = await window.showDirectoryPicker({ mode: "readwrite" });
+  } catch (error) {
+    const message = directoryPickerError(error);
+    if (message) showDirectoryHelp(message);
+    return;
+  }
+  $("#directory-help").hidden = true;
   await store.connect(handle);
   records = store.catalog.records;
   demo = false;

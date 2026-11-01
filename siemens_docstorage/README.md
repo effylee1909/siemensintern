@@ -17,3 +17,7 @@
 建置：根目錄 `npm ci`、`npm run build:pages`，同時產生週會、文件網站及舊版入口。OCR WASM／語言檔與 PDF 字型由 `scripts/docstorage-assets.mjs` 複製至文件網站子目錄。
 
 測試：`npm test`；`scripts/docstorage-smoke.mjs` 針對正式輸出、以 OPFS 模擬資料夾選取測試真實瀏覽器檔案讀寫，並用虛構 PDF／掃描／DOCX 檔驗證。可用 `DOCSTORAGE_URL` 指定靜態測試站，測試用檔置於 `/tmp/docstorage-letter.pdf`、`/tmp/docstorage-scan.pdf`、`/tmp/docstorage-translation.docx`。這不取代實際作業系統的資料夾授權相容性驗證。
+
+## 無法選取資料夾
+
+若出現 `showDirectoryPicker` 的 `SecurityError`／`NotAllowedError`，表示瀏覽器尚未允許選取資料夾，不是 PDF 解析失敗。請將正式 HTTPS 網址直接貼入電腦版 Chrome／Edge 的獨立分頁，避免從聊天、郵件或其他網站的內嵌預覽操作。若仍失敗，請由公司 IT 確認瀏覽器／裝置對本站的檔案系統讀寫政策；網頁不能繞過這些限制，也不需停用公司的安全設定。程式會保留持續顯示的提示與獨立開啟連結；取消選取不當成錯誤。

@@ -1139,3 +1139,7 @@ progress {
 .table-wrap thead th { position: sticky; top: 0; z-index: 1; }
 .preview-panel { position: sticky; top: 20px; }
 @media (max-width: 1250px) { .preview-panel { position: static; } }
+.directory-help { margin-top: 20px; padding: 20px; background: #fff6e8; border: 1px solid #ebd2a4; border-radius: 9px; color: #765b2f; font-size: 13px; line-height: 1.9; }
+.directory-help[hidden] { display: none; }
+.directory-help p { margin: 8px 0 15px; }
+.directory-help .button { display: inline-block; }
