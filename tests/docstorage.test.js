@@ -91,3 +91,46 @@ test("complete document archive restores originals and text, rejects missing or 
   bytes[at] ^= 1;
   await assert.rejects(() => readBackup(new Blob([bytes])), /校驗/);
 });
+
+import {
+  classificationState,
+  applyClassification,
+} from "../siemens_docstorage/classify.js";
+test("OCR spaced headers, multiline subject and missing-colon fields are classified", () => {
+  const r = classify(
+    "範例客戶公司 函\n受 文 者 ： 西 門 子\n發 文 字 號 ： P100\n主 旨 ： 檢送測試程序\n審 查 意 見，請查照。\n說 明 ： 復貴公司 S501 號函。",
+    "scan.pdf",
+  );
+  assert.equal(r.no, "P100");
+  assert.equal(r.category, "審查意見");
+  assert.equal(r.kind, "公文");
+  assert.match(r.subject, /審查意見/);
+  assert.equal(r.customer, "範例客戶公司");
+  const bare = classify("主旨\n提送設備文件送審\n說明：請審核。", "x.pdf");
+  assert.equal(bare.category, "提送文件");
+});
+test("body fallback classifies without filenames; unknown text is not invented as general correspondence", () => {
+  const r = classify("檢送設備測試程序審查意見，請查照並辦理。", "random.pdf");
+  assert.equal(r.category, "審查意見");
+  assert.match(r.evidence, /內文/);
+  const unknown = classify("Welcome to this document.", "random.pdf");
+  assert.equal(unknown.category, "待分類");
+  assert.equal(
+    classificationState({ ...unknown, status: "done", confirmed: false }),
+    "未能自動分類",
+  );
+  assert.equal(
+    classificationState({ ...r, status: "done", confirmed: false }),
+    "已自動分類 · 待核對",
+  );
+  assert.equal(classificationState({ ...r, status: "queued" }), "辨識中");
+});
+test("reclassification preserves previously confirmed links", () => {
+  const r = {
+    references: [
+      { no: "S501", status: "confirmed", target: "old", quote: "人工確認" },
+    ],
+  };
+  applyClassification(r, { references: [], category: "審查意見" });
+  assert.equal(r.references[0].target, "old");
+});
