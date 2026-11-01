@@ -1,6 +1,6 @@
 # 週會紀錄工作台
 
-> 文件平台目前以 [純前端資料夾版](siemens_docstorage/README.md) 為主要入口，發布至 `siemens_docstorage/`；不需後端。後端 Demo 保留供未來使用。
+> 文件平台目前以 [純前端直接上傳版](siemens_docstorage/README.md) 為主要入口，發布至 `siemens_docstorage/`；不需後端。後端 Demo 保留供未來使用。
 
 > 先前的獨立後端 Demo 位於 [docstorage-platform](docstorage-platform/README.md)，包含後端、資料庫與原檔儲存，獨立啟動，不隨週會 GitHub Pages 部署。早期瀏覽器儲存原型保留在 `siemens_docstorage/legacy/` 供匯出舊資料。
 
@@ -109,12 +109,6 @@ PPT 整理預覽可展開「檢視簡報原始表格」，核對每頁的完整�
 
 ## 文件整理存放：siemens_docstorage
 
-新增獨立文件管理網站，保留既有週會網站。發布路徑：
-`https://effylee1909.github.io/siemensintern/siemens_docstorage/`。
+獨立文件網站：`https://effylee1909.github.io/siemensintern/siemens_docstorage/`。目前為直接選檔上傳版，不需資料夾授權。PDF／Word 在瀏覽器辨識與保存，不傳到 GitHub；可手動分類、查看公文歷程，下載／還原含原檔的完整 ZIP 備份。容量受瀏覽器限制，清除網站資料可能遺失文件，請定期備份。
 
-- 多檔選取／拖曳上傳，每份上限 100 MB；按分類整理，編輯檔名、標籤，搜尋、收藏、排序、下載原檔與確認後刪除。
-- IndexedDB 保存文件原檔及資訊，重新整理可接續；與週會資料庫分開。文件不會上傳 GitHub，沒有登入、多人共用或跨裝置同步。清除網站資料會刪除本機文件，請定期備份。
-- 完整 JSON 備份包含原檔，未加密。原檔總量限 350 MB，還原檔案上限 500 MB；更大型文件需分別下載。還原會新增文件並保留現有資料，重複還原會產生副本。整份備份先驗證再以單一交易寫入。
-- 開發：`npm ci` 後 `npm run dev -- --port 5173`，於本機開啟 `/siemens_docstorage/`。
-- 瀏覽器測試：啟動 dev 後執行 `npm run test:docstorage`，需 Chromium，可用 `CHROMIUM_PATH` 指定。包含上傳、編輯、收藏、搜尋、資料保留、下載位元組一致、備份還原及錯誤格式拒絕與手機版面。
-- `npm run build:pages` 同時輸出 `dist/siemens_weekilymeeting/` 與 `dist/siemens_docstorage/`；既有 Pages workflow 推送 main 後發布整個 dist。需在 Settings → Pages 選擇 GitHub Actions，實際上線以 Actions 部署結果為準。
+詳細操作、限制及測試見 [文件平台說明](siemens_docstorage/README.md)。後端 Demo 與舊版仍各自保留，與週會資料庫分開。`npm run build:pages` 建置週會、文件網站與舊版入口；推送 main 後由既有 Actions 流程部署。

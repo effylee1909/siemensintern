@@ -1,8 +1,5 @@
 import * as store from "./storage.js";
-import {
-  directoryContextIssue,
-  directoryPickerError,
-} from "./directory-access.js";
+import { backup, readBackup } from "./backup.js";
 import { extract } from "./extract.js";
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
@@ -40,7 +37,8 @@ let records = [],
   done = 0,
   total = 0,
   demo = false,
-  dirty = false;
+  dirty = false,
+  busyBackup = false;
 const bytes = (n) =>
   n < 1048576
     ? `${(n / 1024).toFixed(0)} KB`
@@ -69,11 +67,39 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 async function persist() {
-  if (!demo) await store.save();
+  if (demo) return;
+  try {
+    await store.save();
+    await updateSpace();
+  } catch (error) {
+    store.rollback();
+    records = store.catalog.records;
+    render();
+    showStorageError(error);
+    throw error;
+  }
 }
-function requireFolder() {
-  if (!store.folder || demo)
-    throw Error("請先開啟並授權本機文件資料夾；示範資料不會寫入你的資料夾。");
+function requireStorage() {
+  if (demo) throw Error("目前是示範模式，請先按「返回我的文件」再上傳。");
+  if (!store.ready)
+    throw Error("瀏覽器儲存尚未就緒，請重新整理，或在獨立分頁開啟本站。");
+  if (busyBackup) throw Error("備份作業進行中，請稍後");
+}
+function showStorageError(error) {
+  const box = $("#storage-error");
+  box.hidden = false;
+  box.textContent =
+    error.name === "QuotaExceededError"
+      ? "瀏覽器儲存空間不足，本次變更未保存。請先下載完整備份，勿清除網站資料。"
+      : `本次變更未保存：${error.message}。請先下載備份，再重新整理。`;
+}
+async function updateSpace() {
+  try {
+    const e = await navigator.storage?.estimate();
+    if (e?.quota)
+      $("#space").textContent =
+        `瀏覽器已用 ${(e.usage / 1024 ** 3).toFixed(2)} / ${(e.quota / 1024 ** 3).toFixed(1)} GB（同網站共用）`;
+  } catch {}
 }
 $("#app").innerHTML =
   `<aside><a class="brand" href="./"><b>▥</b><span>文件整理平台<small>siemens_docstorage</small></span></a><div class="nav-label">DOCUMENT WORKSPACE</div><nav>${[
@@ -90,7 +116,7 @@ $("#app").innerHTML =
     )
     .join(
       "",
-    )}</nav><div class="nav-label">工作區</div><button id="demo" class="nav-button">觀看虛構示範</button><button id="backup" class="nav-button">下載索引備份</button><button id="restore" class="nav-button">還原索引備份</button><input id="restore-file" type="file" accept=".json" hidden><div class="sidebar-note"><span class="dot"></span><span id="folder-state">尚未連接文件資料夾</span><p>單人維護 · 瀏覽器本機處理</p><small>原檔與整理資料不傳到 GitHub</small></div></aside><main><header><div><div class="eyebrow">DOCUMENT WORKSPACE</div><h1>文件總覽</h1><p>集中整理公文與技術文件，追蹤每次往來。</p></div><div class="top-actions"><button id="connect">▱ 開啟文件資料夾</button><button id="upload" class="primary">↥ 批次匯入</button><input id="files" type="file" multiple accept=".pdf,.docx" hidden></div></header><p class="support-note" id="support">建議使用電腦版 Chrome／Edge。選擇專用資料夾，檔案與索引保存在該資料夾；掃描辨識可能需要較長時間。</p><section class="stats"><article><span>收發公文</span><strong id="letters-count">0</strong><small>原文與翻譯集中管理</small></article><article><span>技術文件</span><strong id="technical-count">0</strong><small>以議題整理版本歷程</small></article><article><span>待確認分類</span><strong id="pending-count">0</strong><small>核對系統分類與引用</small></article><article><span>匯入進度</span><strong id="import-count">0 / 0</strong><small>本機文字擷取與掃描 OCR</small></article></section><div class="split"><section class="library"><div class="library-title"><h2 id="view-title">文件清單</h2><span id="result-count"></span></div><div class="filters"><input id="search" type="search" aria-label="搜尋文件" placeholder="搜尋文號、主旨、文件編號…"><select id="customer" aria-label="客戶"><option value="">所有客戶</option></select><select id="category" aria-label="分類"><option value="">所有分類</option>${categories.map((c) => `<option>${c}</option>`).join("")}</select></div><div class="table-wrap"><table><thead><tr><th>文號／文件</th><th>客戶</th><th>分類</th><th>日期／版次</th><th>狀態</th></tr></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty"><div>▱</div><h3>從一個文件資料夾開始</h3><p>先開啟資料夾，或觀看虛構示範。<br>舊版資料不自動搬移。<a href="./legacy/">開啟舊版下載備份</a></p></div><div class="pagination"><button id="prev">←</button><span id="pages"></span><button id="next">→</button></div></section><section id="preview" class="preview-panel"><div class="preview-empty">選擇文件<br>查看分類、原文與往來歷程</div></section></div><section class="queue" id="queue"><h3>▥ 批次匯入佇列</h3><div class="import-row"><progress id="progress" value="0" max="1"></progress><span id="progress-text">尚無匯入作業</span><button id="pause">暫停</button><button id="resume">續接未完成</button><button id="errors">檢視失敗項目</button></div><div id="jobs" class="jobs"></div><p class="muted">每份上限 100 MB、PDF 150 頁。原檔先保存，再逐份辨識；關閉頁面後可重新授權資料夾並續接。索引備份不包含原檔，完整備份請複製整個工作區資料夾。</p></section><footer>siemens_docstorage<span>單人本機工作區 · 規則分類初版</span></footer></main><div id="toast" role="status" aria-live="polite"></div>`;
+    )}</nav><div class="nav-label">工作區</div><button id="demo" class="nav-button">觀看虛構示範</button><button id="backup" class="nav-button">下載完整備份</button><button id="restore" class="nav-button">還原完整備份</button><input id="restore-file" type="file" accept=".zip" hidden><div class="sidebar-note"><span class="dot"></span><span id="storage-state">保存在此瀏覽器</span><p>單人維護 · 瀏覽器本機處理</p><small>原檔與整理資料不傳到 GitHub</small></div></aside><main><header><div><div class="eyebrow">DOCUMENT WORKSPACE</div><h1>文件總覽</h1><p>集中整理公文與技術文件，追蹤每次往來。</p></div><div class="top-actions"><button id="my-documents" hidden>返回我的文件</button><button id="keep-storage">申請持續保存</button><button id="upload" class="primary">＋ 上傳文件</button><input id="files" type="file" accept=".pdf,.docx" hidden></div></header><p class="support-note" id="support">直接選取 PDF 或 Word，無需資料夾授權。文件僅保存在此瀏覽器，不會上傳 GitHub；清除網站資料可能遺失文件，請定期下載完整備份。</p><div id="storage-error" class="directory-help" role="alert" hidden></div><p id="space" class="muted"></p><section class="stats"><article><span>收發公文</span><strong id="letters-count">0</strong><small>原文與翻譯集中管理</small></article><article><span>技術文件</span><strong id="technical-count">0</strong><small>以議題整理版本歷程</small></article><article><span>待確認分類</span><strong id="pending-count">0</strong><small>核對系統分類與引用</small></article><article><span>匯入進度</span><strong id="import-count">0 / 0</strong><small>本機文字擷取與掃描 OCR</small></article></section><div class="split"><section class="library"><div class="library-title"><h2 id="view-title">文件清單</h2><span id="result-count"></span></div><div class="filters"><input id="search" type="search" aria-label="搜尋文件" placeholder="搜尋文號、主旨、文件編號…"><select id="customer" aria-label="客戶"><option value="">所有客戶</option></select><select id="category" aria-label="分類"><option value="">所有分類</option>${categories.map((c) => `<option>${c}</option>`).join("")}</select></div><div class="table-wrap"><table><thead><tr><th>文號／文件</th><th>客戶</th><th>分類</th><th>日期／版次</th><th>狀態</th></tr></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty"><div>▱</div><h3>上傳第一份文件</h3><p>按右上角「上傳文件」，或觀看虛構示範。<br>舊版資料不自動搬移。<a href="./legacy/">開啟舊版下載備份</a></p></div><div class="pagination"><button id="prev">←</button><span id="pages"></span><button id="next">→</button></div></section><section id="preview" class="preview-panel"><div class="preview-empty">選擇文件<br>查看分類、原文與往來歷程</div></section></div><section class="queue" id="queue"><h3>▥ 批次匯入佇列</h3><div class="import-row"><progress id="progress" value="0" max="1"></progress><span id="progress-text">尚無匯入作業</span><button id="pause">暫停</button><button id="resume">續接未完成</button><button id="errors">檢視失敗項目</button></div><div id="jobs" class="jobs"></div><p class="muted">每份上限 100 MB、PDF 150 頁。原檔先保存，再逐份辨識；重新開啟同一瀏覽器可續接。完整 ZIP 備份包含原檔、辨識文字與分類；容量仍由瀏覽器決定，單次完整備份上限 20 GB。</p></section><footer>siemens_docstorage<span>單人本機工作區 · 規則分類初版</span></footer></main><div id="toast" role="status" aria-live="polite"></div>`;
 function render() {
   $("#letters-count").textContent = records.filter(
     (r) => r.kind === "公文",
@@ -206,7 +232,7 @@ async function preview() {
   if (tab === "files")
     body = `${r.files.map((f) => `<article class="file-row"><div><strong>${esc(f.name)}</strong><small>${f.role === "translation" ? "既有翻譯" : f.role === "attachment" ? "附件" : "原文"} · ${bytes(f.size)}</small></div><button data-download="${f.id}">下載</button><button data-text="${f.id}">讀取文字</button></article>`).join("")}<button id="attach">＋ 補上翻譯 Word／附件</button><input id="attachment" type="file" accept=".docx,.pdf" multiple hidden><div id="text" class="original-text"></div>`;
   $("#preview").innerHTML =
-    `<h3>${esc(r.no || "文件詳情")} ${esc(r.subject)}</h3>${demo ? '<p class="demo-label">虛構示範，未寫入資料夾</p>' : ""}<div class="tabs">${[
+    `<h3>${esc(r.no || "文件詳情")} ${esc(r.subject)}</h3>${demo ? '<p class="demo-label">虛構示範，未寫入你的文件</p>' : ""}<div class="tabs">${[
       ["info", "分類與原文"],
       ["timeline", "往來歷程"],
       ["files", "原檔與翻譯"],
@@ -220,7 +246,6 @@ async function preview() {
   if (form) {
     form.oninput = () => (dirty = true);
     form.onsubmit = safe(async (e) => {
-      const before = structuredClone(r);
       Object.assign(r, Object.fromEntries(new FormData(e.target)));
       r.manual = true;
       r.confirmed = true;
@@ -230,7 +255,7 @@ async function preview() {
         render();
         toast("分類已保存");
       } catch (error) {
-        Object.assign(r, before);
+        records = store.catalog.records;
         throw error;
       }
     });
@@ -249,7 +274,7 @@ async function preview() {
     });
   if ($("#attach"))
     $("#attach").onclick = safe(() => {
-      requireFolder();
+      requireStorage();
       $("#attachment").click();
     });
   if ($("#attachment"))
@@ -283,7 +308,7 @@ $("#preview").onclick = safe(async (e) => {
     await preview();
   }
   if (b.dataset.download) {
-    requireFolder();
+    requireStorage();
     const f = r.files.find((f) => f.id === b.dataset.download);
     download(await store.getFile(f.id), f.name);
   }
@@ -302,54 +327,35 @@ $("#preview").onclick = safe(async (e) => {
         .join("") || "尚無辨識文字";
   }
 });
-const directoryHelp = document.createElement("section");
-directoryHelp.id = "directory-help";
-directoryHelp.className = "directory-help";
-directoryHelp.hidden = true;
-directoryHelp.setAttribute("role", "alert");
-$("header").after(directoryHelp);
-function showDirectoryHelp(message) {
-  directoryHelp.innerHTML = `<strong>無法開啟文件資料夾</strong><p>${esc(message)}</p><a class="button" href="https://effylee1909.github.io/siemensintern/siemens_docstorage/" target="_blank" rel="noopener noreferrer">在獨立分頁開啟網站 ↗</a><p class="muted">不需要重新上傳 PDF，也不要停用公司的安全設定。你仍可用「觀看虛構示範」查看介面。</p>`;
-  directoryHelp.hidden = false;
-  directoryHelp.scrollIntoView({ block: "nearest" });
-}
-$("#connect").onclick = safe(async () => {
-  if (running || importing) throw Error("請先暫停並等候目前文件完成");
-  if (dirty && !confirm("放棄未保存的修改？")) return;
-  const issue = directoryContextIssue({
-    secure: window.isSecureContext,
-    topLevel: window.self === window.top,
-    supported: typeof window.showDirectoryPicker === "function",
-    active: navigator.userActivation?.isActive,
-  });
-  if (issue) {
-    showDirectoryHelp(issue);
-    return;
-  }
-  let handle;
-  try {
-    // Call directly within the click gesture, before any asynchronous work.
-    handle = await window.showDirectoryPicker({ mode: "readwrite" });
-  } catch (error) {
-    const message = directoryPickerError(error);
-    if (message) showDirectoryHelp(message);
-    return;
-  }
-  $("#directory-help").hidden = true;
-  await store.connect(handle);
+async function loadMine() {
+  if (running || importing || busyBackup) throw Error("請等候目前作業結束");
+  if (dirty && !confirm("放棄未保存修改？")) return;
+  await store.open();
   records = store.catalog.records;
   demo = false;
   dirty = false;
   selected = "";
   tab = "info";
-  $("#folder-state").textContent = handle.name;
+  $("#my-documents").hidden = true;
+  $("#storage-state").textContent = "保存在此瀏覽器";
   $("#preview").innerHTML = '<div class="preview-empty">選擇文件查看詳情</div>';
   render();
   queue();
-  toast("已開啟工作區，可匯入新文件或續接未完成辨識。");
+  await updateSpace();
+}
+$("#my-documents").onclick = safe(loadMine);
+$("#keep-storage").onclick = safe(async () => {
+  if (!navigator.storage?.persist)
+    throw Error("此瀏覽器不提供持續保存申請，請定期備份");
+  const ok = await navigator.storage.persist();
+  toast(
+    ok
+      ? "已取得持續保存，仍請定期備份"
+      : "瀏覽器未核准持續保存；仍可使用，請定期下載備份。",
+  );
 });
 async function importFiles(files, attach = null) {
-  requireFolder();
+  requireStorage();
   if (running || importing) throw Error("已有辨識作業，請稍後再匯入");
   const list = [...files];
   if (list.length > 1000) throw Error("每批最多 1,000 份，請分批匯入");
@@ -403,7 +409,7 @@ async function importFiles(files, attach = null) {
   await processQueue();
 }
 async function processQueue() {
-  requireFolder();
+  requireStorage();
   if (running || importing) return;
   running = true;
   paused = false;
@@ -453,7 +459,7 @@ async function processQueue() {
   }
 }
 $("#upload").onclick = safe(() => {
-  requireFolder();
+  requireStorage();
   $("#files").click();
 });
 $("#files").onchange = safe(async (e) => {
@@ -547,53 +553,63 @@ $("nav").onclick = safe(async (e) => {
   }[view];
   render();
 });
-$("#backup").onclick = safe(() => {
-  requireFolder();
-  download(
-    new Blob([JSON.stringify(store.catalog)], { type: "application/json" }),
-    "siemens-docstorage-index.json",
-  );
-  toast(
-    "索引已下載；完整備份請另外複製整個工作區，包含 originals 與 text 資料夾。",
-  );
+$("#backup").onclick = safe(async () => {
+  requireStorage();
+  if (running || importing) throw Error("請先等候目前文件完成");
+  busyBackup = true;
+  try {
+    toast("正在建立含原檔的完整備份…");
+    download(
+      await backup(),
+      "siemens-docstorage-" + new Date().toISOString().slice(0, 10) + ".zip",
+    );
+    toast("完整備份已下載，包含原檔、辨識文字與關聯。");
+  } finally {
+    busyBackup = false;
+  }
 });
 $("#restore").onclick = safe(() => {
-  requireFolder();
-  if (running || importing) throw Error("請先等候辨識作業結束");
+  requireStorage();
+  if (running || importing) throw Error("請先等候作業結束");
   $("#restore-file").click();
 });
 $("#restore-file").onchange = safe(async (e) => {
-  const f = e.target.files[0];
+  const file = e.target.files[0];
   e.target.value = "";
-  if (!f) return;
-  if (f.size > 100 * 1024 * 1024) throw Error("索引備份超過 100 MB");
-  const c = JSON.parse(await f.text());
-  if (
-    c.version !== 1 ||
-    c.id !== store.catalog.id ||
-    !Array.isArray(c.records) ||
-    c.records.some(
-      (r) => !r.id || !Array.isArray(r.files) || typeof r.subject !== "string",
-    )
-  )
-    throw Error("備份格式錯誤或不屬於此工作區；請連同原檔搬移整個工作區。");
-  if (!confirm("以備份索引取代目前索引？原始檔不刪除。")) return;
-  const previous = store.catalog.records;
-  store.catalog.records = c.records;
+  if (!file) return;
+  requireStorage();
+  busyBackup = true;
   try {
-    await store.save();
+    const data = await readBackup(file);
+    if (
+      !confirm(
+        `以備份中的 ${data.catalog.records.length} 筆文件取代目前資料？請先備份現有文件。`,
+      )
+    )
+      return;
+    try {
+      await store.restoreAll(data.catalog, data.files, data.texts);
+    } catch (error) {
+      showStorageError(error);
+      throw error;
+    }
     records = store.catalog.records;
+    selected = "";
+    dirty = false;
+    $("#preview").innerHTML =
+      '<div class="preview-empty">備份已還原，請選擇文件</div>';
     render();
-    toast("索引已還原");
-  } catch (error) {
-    store.catalog.records = previous;
-    throw error;
+    await updateSpace();
+    toast("完整備份已還原");
+  } finally {
+    busyBackup = false;
   }
 });
 $("#demo").onclick = safe(async () => {
   if (running || importing) throw Error("請先完成目前匯入");
   if (dirty && !confirm("放棄未保存修改？")) return;
   demo = true;
+  $("#my-documents").hidden = false;
   dirty = false;
   records = [
     ["S501", "提送測試程序 Rev. A", "提送文件", "2026-08-01", "A", ""],
@@ -633,17 +649,24 @@ $("#demo").onclick = safe(async () => {
       : [],
     evidence: "虛構示範：依主旨及欄位提出分類建議。",
   }));
-  $("#folder-state").textContent = "虛構示範模式";
+  $("#storage-state").textContent = "虛構示範模式";
   selected = "P100";
   tab = "timeline";
   render();
   await preview();
 });
 window.addEventListener("beforeunload", (e) => {
-  if (running || importing || dirty) {
+  if (running || importing || dirty || busyBackup) {
     e.preventDefault();
     e.returnValue = "";
   }
 });
 render();
 queue();
+
+loadMine().catch((error) => {
+  showStorageError(error);
+  toast(
+    "無法使用瀏覽器儲存。請在獨立分頁開啟，或確認網站儲存未被公司政策阻擋。",
+  );
+});
