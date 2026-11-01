@@ -1,6 +1,7 @@
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { unzipSync, strFromU8 } from "fflate";
+import { textFromItems } from "./pdf-layout.js";
 GlobalWorkerOptions.workerSrc = pdfWorker;
 let ocr;
 export async function extract(file, onProgress = () => {}) {
@@ -45,9 +46,7 @@ export async function extract(file, onProgress = () => {}) {
       onProgress(`第 ${i} / ${pdf.numPages} 頁`);
       const page = await pdf.getPage(i),
         content = await page.getTextContent();
-      let text = content.items
-          .map((t) => t.str + (t.hasEOL ? "\n" : " "))
-          .join(""),
+      let text = textFromItems(content.items),
         method = "PDF 文字擷取";
       if (text.replace(/\s/g, "").length < 30) {
         onProgress(`第 ${i} 頁 · 掃描 OCR`);

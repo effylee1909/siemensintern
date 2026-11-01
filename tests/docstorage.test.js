@@ -134,3 +134,64 @@ test("reclassification preserves previously confirmed links", () => {
   applyClassification(r, { references: [], category: "審查意見" });
   assert.equal(r.references[0].target, "old");
 });
+
+import { textFromItems } from "../siemens_docstorage/pdf-layout.js";
+test("document topic and current subject revision outrank historical review versions", () => {
+  const r = classify(
+    "範例工程公司 函\n受文者：範例顧問股份有限\n公司\n發文字號：S900\n發文日期：中華民國115年1月2日\n附件：系統切換計畫—示範甲站\n主旨：專案之系統切換計畫—示範甲\n站(E版)1式7份，詳如附件，敬請鑒核。Submit the System Switchover Plan — Hukou Station (E). Please review it.\n說明：依前次D版審查意見修訂。\n二、已確認審查意見D版。",
+    "random.pdf",
+  );
+  assert.equal(r.topic_name, "系統切換計畫－示範甲站");
+  assert.equal(r.topic, r.topic_name);
+  assert.equal(r.version, "E");
+  assert.equal(r.date, "2026-01-02");
+  assert.equal(r.category, "提送文件");
+  assert.notEqual(r.subject, "說明:");
+  const old = classify(
+    "主旨：系統切換計畫—示範甲站(D版)提送。\n說明：Please review it.",
+    "d.pdf",
+  );
+  assert.equal(old.topic, r.topic);
+  assert.equal(old.version, "D");
+  const other = classify("主旨：系統切換計畫—示範乙站(E版)提送。", "other.pdf");
+  assert.notEqual(other.topic, r.topic);
+});
+test("review is never read as revision iew, and historical body revision is not current", () => {
+  const r = classify(
+    "主旨：系統切換計畫—示範甲站，please review it.\n說明：前次 D版意見。",
+    "x.pdf",
+  );
+  assert.equal(r.version, "");
+  assert.equal(r.topic_name, "系統切換計畫－示範甲站");
+  const d = classify(
+    "文件編號：SIG-001\n版次：B\n主旨：設備技術文件提送",
+    "x.pdf",
+  );
+  assert.equal(d.version, "B");
+});
+test("blank subject stops at another field instead of becoming 說明", () => {
+  const r = classify(
+    "文號：S999\n主旨：\n說明：前次意見\n附件：系統切換計畫—示範甲站",
+    "file.pdf",
+  );
+  assert.notEqual(r.subject, "說明:");
+  assert.equal(r.topic_name, "系統切換計畫－示範甲站");
+});
+test("PDF coordinate reading reconstructs shuffled stream items before extracting title", () => {
+  const item = (str, x, y) => ({
+    str,
+    transform: [12, 0, 0, 12, x, y],
+    width: str.length * 12,
+  });
+  const items = [
+    item("說明：前次D版意見。", 40, 600),
+    item("主旨：", 40, 700),
+    item("站(E版)提送，please review it.", 40, 680),
+    item("系統切換計畫—示範甲", 110, 700),
+  ];
+  const text = textFromItems(items);
+  assert.ok(text.indexOf("主旨") < text.indexOf("說明"));
+  const r = classify(text, "x.pdf");
+  assert.equal(r.topic_name, "系統切換計畫－示範甲站");
+  assert.equal(r.version, "E");
+});

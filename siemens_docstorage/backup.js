@@ -35,6 +35,12 @@ export function validateCatalog(c) {
     ])
       if (typeof r[key] !== "string" || r[key].length > 10000)
         throw Error("備份欄位格式不正確");
+    for (const key of ["topic_name", "document_no", "topic_evidence"])
+      if (
+        r[key] !== undefined &&
+        (typeof r[key] !== "string" || r[key].length > 10000)
+      )
+        throw Error("內容主題欄位格式不正確");
     for (const ref of r.references)
       if (
         !ref ||

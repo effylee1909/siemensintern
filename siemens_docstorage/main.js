@@ -30,6 +30,7 @@ let records = [],
   query = "",
   customer = "",
   category = "",
+  topicFilter = "",
   tab = "info",
   running = false,
   importing = false,
@@ -118,8 +119,19 @@ $("#app").innerHTML =
     )
     .join(
       "",
-    )}</nav><div class="nav-label">工作區</div><button id="demo" class="nav-button">觀看虛構示範</button><button id="backup" class="nav-button">下載完整備份</button><button id="restore" class="nav-button">還原完整備份</button><input id="restore-file" type="file" accept=".zip" hidden><div class="sidebar-note"><span class="dot"></span><span id="storage-state">保存在此瀏覽器</span><p>單人維護 · 瀏覽器本機處理</p><small>原檔與整理資料不傳到 GitHub</small></div></aside><main><header><div><div class="eyebrow">DOCUMENT WORKSPACE</div><h1>文件總覽</h1><p>集中整理公文與技術文件，追蹤每次往來。</p></div><div class="top-actions"><button id="my-documents" hidden>返回我的文件</button><button id="keep-storage">申請持續保存</button><button id="upload" class="primary">＋ 上傳文件</button><input id="files" type="file" accept=".pdf,.docx" hidden></div></header><p class="support-note" id="support">直接選取 PDF 或 Word，無需資料夾授權。文件僅保存在此瀏覽器，不會上傳 GitHub；清除網站資料可能遺失文件，請定期下載完整備份。</p><div id="storage-error" class="directory-help" role="alert" hidden></div><p id="space" class="muted"></p><section class="stats"><article><span>收發公文</span><strong id="letters-count">0</strong><small>原文與翻譯集中管理</small></article><article><span>技術文件</span><strong id="technical-count">0</strong><small>以議題整理版本歷程</small></article><article><span>待人工核對</span><strong id="pending-count">0</strong><small>包含已自動分類、尚未人工確認的文件</small></article><article><span>匯入進度</span><strong id="import-count">0 / 0</strong><small>本機文字擷取與掃描 OCR</small></article></section><div class="split"><section class="library"><div class="library-title"><h2 id="view-title">文件清單</h2><span id="result-count"></span></div><div class="filters"><input id="search" type="search" aria-label="搜尋文件" placeholder="搜尋文號、主旨、文件編號…"><select id="customer" aria-label="客戶"><option value="">所有客戶</option></select><select id="category" aria-label="分類"><option value="">所有分類</option>${categories.map((c) => `<option>${c}</option>`).join("")}</select></div><div class="table-wrap"><table><thead><tr><th>文號／文件</th><th>客戶</th><th>分類</th><th>日期／版次</th><th>狀態</th></tr></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty"><div>▱</div><h3>上傳第一份文件</h3><p>按右上角「上傳文件」，或觀看虛構示範。<br>舊版資料不自動搬移。<a href="./legacy/">開啟舊版下載備份</a></p></div><div class="pagination"><button id="prev">←</button><span id="pages"></span><button id="next">→</button></div></section><section id="preview" class="preview-panel"><div class="preview-empty">選擇文件<br>查看分類、原文與往來歷程</div></section></div><section class="queue" id="queue"><h3>▥ 批次匯入佇列</h3><div class="import-row"><progress id="progress" value="0" max="1"></progress><span id="progress-text">尚無匯入作業</span><button id="pause">暫停</button><button id="resume">續接未完成</button><button id="errors">檢視失敗項目</button></div><div id="jobs" class="jobs"></div><p class="muted">每份上限 100 MB、PDF 150 頁。原檔先保存，再逐份辨識；重新開啟同一瀏覽器可續接。完整 ZIP 備份包含原檔、辨識文字與分類；容量仍由瀏覽器決定，單次完整備份上限 20 GB。</p></section><footer>siemens_docstorage<span>單人本機工作區 · 規則分類初版</span></footer></main><div id="toast" role="status" aria-live="polite"></div>`;
+    )}</nav><div class="nav-label">工作區</div><button id="demo" class="nav-button">觀看虛構示範</button><button id="backup" class="nav-button">下載完整備份</button><button id="restore" class="nav-button">還原完整備份</button><input id="restore-file" type="file" accept=".zip" hidden><div class="sidebar-note"><span class="dot"></span><span id="storage-state">保存在此瀏覽器</span><p>單人維護 · 瀏覽器本機處理</p><small>原檔與整理資料不傳到 GitHub</small></div></aside><main><header><div><div class="eyebrow">DOCUMENT WORKSPACE</div><h1>文件總覽</h1><p>集中整理公文與技術文件，追蹤每次往來。</p></div><div class="top-actions"><button id="my-documents" hidden>返回我的文件</button><button id="keep-storage">申請持續保存</button><button id="upload" class="primary">＋ 上傳文件</button><input id="files" type="file" accept=".pdf,.docx" hidden></div></header><p class="support-note" id="support">直接選取 PDF 或 Word，無需資料夾授權。文件僅保存在此瀏覽器，不會上傳 GitHub；清除網站資料可能遺失文件，請定期下載完整備份。</p><div id="storage-error" class="directory-help" role="alert" hidden></div><p id="space" class="muted"></p><section class="stats"><article><span>收發公文</span><strong id="letters-count">0</strong><small>原文與翻譯集中管理</small></article><article><span>技術文件</span><strong id="technical-count">0</strong><small>以議題整理版本歷程</small></article><article><span>待人工核對</span><strong id="pending-count">0</strong><small>包含已自動分類、尚未人工確認的文件</small></article><article><span>匯入進度</span><strong id="import-count">0 / 0</strong><small>本機文字擷取與掃描 OCR</small></article></section><div class="split"><section class="library"><div class="library-title"><h2 id="view-title">文件清單</h2><span id="result-count"></span></div><div class="filters"><input id="search" type="search" aria-label="搜尋文件" placeholder="搜尋文號、主旨、文件編號…"><select id="customer" aria-label="客戶"><option value="">所有客戶</option></select><select id="topic-filter" aria-label="內容主題"><option value="">所有內容主題</option></select><select id="category" aria-label="公文用途"><option value="">所有公文用途</option>${categories.map((c) => `<option>${c}</option>`).join("")}</select></div><div class="table-wrap"><table><thead><tr><th>文號／文件</th><th>客戶</th><th>內容主題／公文用途</th><th>日期／版次</th><th>狀態</th></tr></thead><tbody id="rows"></tbody></table></div><div id="empty" class="empty"><div>▱</div><h3>上傳第一份文件</h3><p>按右上角「上傳文件」，或觀看虛構示範。<br>舊版資料不自動搬移。<a href="./legacy/">開啟舊版下載備份</a></p></div><div class="pagination"><button id="prev">←</button><span id="pages"></span><button id="next">→</button></div></section><section id="preview" class="preview-panel"><div class="preview-empty">選擇文件<br>查看分類、原文與往來歷程</div></section></div><section class="queue" id="queue"><h3>▥ 批次匯入佇列</h3><div class="import-row"><progress id="progress" value="0" max="1"></progress><span id="progress-text">尚無匯入作業</span><button id="pause">暫停</button><button id="resume">續接未完成</button><button id="errors">檢視失敗項目</button></div><div id="jobs" class="jobs"></div><p class="muted">每份上限 100 MB、PDF 150 頁。原檔先保存，再逐份辨識；重新開啟同一瀏覽器可續接。完整 ZIP 備份包含原檔、辨識文字與分類；容量仍由瀏覽器決定，單次完整備份上限 20 GB。</p></section><footer>siemens_docstorage<span>單人本機工作區 · 規則分類初版</span></footer></main><div id="toast" role="status" aria-live="polite"></div>`;
 function render() {
+  const topics = [
+    ...new Set(records.map((r) => r.topic_name).filter(Boolean)),
+  ].sort();
+  $("#topic-filter").innerHTML =
+    '<option value="">所有內容主題</option>' +
+    topics
+      .map(
+        (t) =>
+          `<option value="${esc(t)}" ${t === topicFilter ? "selected" : ""}>${esc(t)}</option>`,
+      )
+      .join("");
   $("#letters-count").textContent = records.filter(
     (r) => r.kind === "公文",
   ).length;
@@ -146,7 +158,8 @@ function render() {
       (view !== "unclassified" || classificationState(r) === "未能自動分類") &&
       (!customer || r.customer === customer) &&
       (!category || r.category === category) &&
-      `${r.no} ${r.subject} ${r.topic} ${r.customer} ${r.files.map((f) => f.name).join(" ")}`
+      (!topicFilter || r.topic_name === topicFilter) &&
+      `${r.no} ${r.subject} ${r.topic} ${r.topic_name || ""} ${r.customer} ${r.files.map((f) => f.name).join(" ")}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
@@ -156,7 +169,7 @@ function render() {
     .slice((page - 1) * 30, page * 30)
     .map(
       (r) =>
-        `<tr data-id="${r.id}" tabindex="0"><td><strong>${esc(r.no || r.topic || "待辨識")}</strong><small>${esc(r.subject)}</small></td><td>${esc(r.customer || "待確認")}</td><td><span class="tag">${esc(r.category || "待分類")}</span></td><td>${esc(r.date || "—")}<small>${esc(r.version || "")}</small></td><td><span class="badge ${r.status === "error" ? "error" : r.confirmed ? "confirmed" : classificationState(r) === "已自動分類 · 待核對" ? "working" : "pending"}">${classificationState(r)}</span></td></tr>`,
+        `<tr data-id="${r.id}" tabindex="0"><td><strong>${esc(r.no || r.topic || "待辨識")}</strong><small>${esc(r.subject)}</small></td><td>${esc(r.customer || "待確認")}</td><td><strong>${esc(r.topic_name || "主題待辨識")}</strong><small><span class="tag">${esc(r.category || "待分類")}</span></small></td><td>${esc(r.date || "—")}<small>${esc(r.version || "")}</small></td><td><span class="badge ${r.status === "error" ? "error" : r.confirmed ? "confirmed" : classificationState(r) === "已自動分類 · 待核對" ? "working" : "pending"}">${classificationState(r)}</span></td></tr>`,
     )
     .join("");
   $("#empty").hidden = !!list.length;
@@ -184,7 +197,7 @@ async function preview() {
   if (!r) return;
   let body = "";
   if (tab === "info")
-    body = `<p class="notice">${classificationState(r)} · 分類：${esc(r.category || "待分類")}</p><p class="muted">${esc(r.evidence || "尚未完成辨識，可先手動整理。")}</p>${r.error ? `<p class="error-note">${esc(r.error)}</p>` : ""}<form id="edit"><label>主旨<input name="subject" value="${esc(r.subject)}" required></label><label>文號<input name="no" value="${esc(r.no)}"></label><label>客戶／往來單位<input name="customer" value="${esc(r.customer)}"></label><label>文件種類<select name="kind">${["公文", "技術文件", "待分類"].map((c) => `<option ${r.kind === c ? "selected" : ""}>${c}</option>`).join("")}</select></label><label>分類<select name="category">${categories.map((c) => `<option ${r.category === c ? "selected" : ""}>${c}</option>`).join("")}</select></label><label>日期<input name="date" value="${esc(r.date)}"></label><label>版次<input name="version" value="${esc(r.version)}"></label><label>議題／技術文件編號<input name="topic" value="${esc(r.topic)}"></label><label>期限原文（相對期限不自動推算）<input name="due" value="${esc(r.due)}"></label><button class="primary" type="submit">確認分類並保存</button></form><button id="reclassify">重新辨識與分類</button>`;
+    body = `<p class="notice">${classificationState(r)} · 內容主題：${esc(r.topic_name || "待辨識")} · 公文用途：${esc(r.category || "待分類")}</p><p class="muted">${esc(r.evidence || "尚未完成辨識，可先手動整理。")}</p>${r.error ? `<p class="error-note">${esc(r.error)}</p>` : ""}<form id="edit"><label>主旨<input name="subject" value="${esc(r.subject)}" required></label><label>文號<input name="no" value="${esc(r.no)}"></label><label>客戶／往來單位<input name="customer" value="${esc(r.customer)}"></label><label>文件種類<select name="kind">${["公文", "技術文件", "待分類"].map((c) => `<option ${r.kind === c ? "selected" : ""}>${c}</option>`).join("")}</select></label><label>公文用途（提送／審查／回覆）<select name="category">${categories.map((c) => `<option ${r.category === c ? "selected" : ""}>${c}</option>`).join("")}</select></label><label>內容主題／技術文件名稱<input name="topic_name" value="${esc(r.topic_name || "")}"></label><label>技術文件編號<input name="document_no" value="${esc(r.document_no || "")}"></label><label>日期<input name="date" value="${esc(r.date)}"></label><label>版次<input name="version" value="${esc(r.version)}"></label><label>歷程識別（文件編號或內容主題）<input name="topic" value="${esc(r.topic)}"></label><label>期限原文（相對期限不自動推算）<input name="due" value="${esc(r.due)}"></label><button class="primary" type="submit">確認分類並保存</button></form><button id="reclassify">重新辨識與分類</button>`;
   if (tab === "timeline") {
     const ids = new Set([r.id]);
     if (r.topic)
@@ -269,7 +282,13 @@ async function preview() {
   if (form) {
     form.oninput = () => (dirty = true);
     form.onsubmit = safe(async (e) => {
-      Object.assign(r, Object.fromEntries(new FormData(e.target)));
+      const values = Object.fromEntries(new FormData(e.target));
+      if (
+        values.topic === r.topic &&
+        (!r.topic || r.topic === r.topic_name || r.topic === r.document_no)
+      )
+        values.topic = values.document_no || values.topic_name || values.topic;
+      Object.assign(r, values);
       r.manual = true;
       r.confirmed = true;
       try {
@@ -433,6 +452,7 @@ async function importFiles(files, attach = null) {
   query = "";
   customer = "";
   category = "";
+  topicFilter = "";
   $("#search").value = "";
   $("#category").value = "";
   $("nav .active")?.classList.remove("active");
@@ -546,6 +566,11 @@ $("#search").oninput = (e) => {
 };
 $("#customer").onchange = (e) => {
   customer = e.target.value;
+  page = 1;
+  render();
+};
+$("#topic-filter").onchange = (e) => {
+  topicFilter = e.target.value;
   page = 1;
   render();
 };

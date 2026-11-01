@@ -45,43 +45,48 @@ export function normalizeText(text) {
 }
 export function classify(raw, name) {
   const text = normalizeText(raw);
-  const field = (label) => {
+  const lines = text.split("\n").map((l) => l.trim());
+  const isHeader = (l) =>
+    new RegExp("^(?:" + labelPattern + ")(?:[ \t]*:|[ \t]*$)", "i").test(l);
+  const field = (label, multiline = false) => {
     const pattern = label.split("|").map(spaced).join("|");
-    const m = text.match(
-      new RegExp(
-        "(?:^|\\n)\\s*(?:" +
-          pattern +
-          ")(?:[ \\t]*:[ \\t]*|[ \\t]*\\n[ \\t]*)([^\\n]+)",
-        "i",
-      ),
+    const re = new RegExp(
+      "^(?:" + pattern + ")(?:[ \t]*:[ \t]*(.*)|[ \t]*)$",
+      "i",
     );
-    return m?.[1]?.trim() || "";
-  };
-  const extractedSubject = field("主旨|Subject|Title");
-  let subject = extractedSubject;
-  // A subject may wrap across several lines; stop at the next official field.
-  if (subject) {
-    const lines = text.split("\n");
-    const i = lines.findIndex((l) =>
-      new RegExp(
-        "^\\s*(?:" + spaced("主旨") + "|Subject|Title)\\s*:",
-        "i",
-      ).test(l),
-    );
-    if (i >= 0) {
-      for (let j = i + 1; j < Math.min(lines.length, i + 5); j++) {
-        const l = lines[j].trim();
-        if (
-          !l ||
-          new RegExp("^(?:" + labelPattern + ")\\s*:", "i").test(l) ||
-          /^[一二三四五六七八九十]+[、.]/.test(l)
-        )
-          break;
-        subject += l;
+    for (let i = 0; i < lines.length; i++) {
+      const match = lines[i].match(re);
+      if (!match) continue;
+      let value = (match[1] || "").trim();
+      if (value && isHeader(value)) continue;
+      const parts = value ? [value] : [];
+      for (
+        let j = i + 1;
+        j < Math.min(lines.length, i + (multiline ? 30 : 2));
+        j++
+      ) {
+        const l = lines[j];
+        if (isHeader(l) || /^[一二三四五六七八九十]+[、.]/.test(l)) break;
+        if (!l) {
+          if (parts.length) break;
+          continue;
+        }
+        if (!multiline && parts.length) break;
+        parts.push(l);
+      }
+      if (parts.length) {
+        let value = normalizeText(parts.join(" "))
+          .replace(/(?:地址|聯絡人|電話|傳真|電子郵件)\s*:.*$/, "")
+          .trim();
+        if (/有限$/.test(value) && /^公司$/.test(lines[i + 1] || ""))
+          value += "公司";
+        return value;
       }
     }
-  }
-  if (!subject) subject = name.replace(/\.[^.]+$/, "");
+    return "";
+  };
+  const extractedSubject = field("主旨|Subject|Title", true);
+  const subject = extractedSubject || name.replace(/\.[^.]+$/, "");
   const no = field("發文字號|來文文號|文號|Letter No\\.?|Reference");
   let sender = field("發文單位|發文者|From");
   if (!sender)
@@ -122,7 +127,10 @@ export function classify(raw, name) {
     for (const [c, re] of [
       ["回覆補充", /回覆|補充|補件|回復|response|reply/i],
       ["審查意見", /審查意見|審查結果|review\s*(?:comments|results)/i],
-      ["提送文件", /提送|送審|報核|提交.*審查|submit|submission/i],
+      [
+        "提送文件",
+        /提送|送審|報核|檢送|敬請(?:鑒核|審核)|提交.*審查|submit|submission/i,
+      ],
     ]) {
       const match = source.match(re);
       if (match) {
@@ -161,6 +169,8 @@ export function classify(raw, name) {
     if (!isNaN(actual) && actual.toISOString().slice(0, 10) === value)
       date = value;
   }
+  const attachment = field("附件");
+  const content = contentIdentity(extractedSubject, attachment, doc, text);
   return {
     subject,
     no,
@@ -168,17 +178,19 @@ export function classify(raw, name) {
     category,
     kind: effectiveKind,
     date,
-    version:
-      field("版次|Revision|Rev\\.?") ||
-      text.match(/Rev\.?\s*([A-Z0-9.]+)/i)?.[1] ||
-      "",
-    topic: doc,
+    version: content.version || strictVersion(field("版次|Revision|Rev\\.?")),
+    topic: doc || content.title,
+    topic_name: content.title,
+    document_no: doc,
+    topic_evidence: content.evidence,
     references,
-    evidence: hit
-      ? `${scope}含「${hit}」，已自動分類為「${category}」，請核對。`
-      : category === "待分類"
-        ? "已讀取文字，但未找到足夠分類依據；請查看辨識文字並手動補充。"
-        : `依文件欄位判定為「${effectiveKind}／${category}」，已自動分類，請核對。`,
+    evidence: content.title
+      ? `內容主題「${content.title}」${content.version ? `，本次 ${content.version} 版` : ""}；${content.evidence}。公文用途為「${category}」，請核對。`
+      : hit
+        ? `${scope}含「${hit}」，已自動分類為「${category}」，請核對。`
+        : category === "待分類"
+          ? "已讀取文字，但未找到足夠分類依據；請查看辨識文字並手動補充。"
+          : `依文件欄位判定為「${effectiveKind}／${category}」，已自動分類，請核對。`,
     due:
       text
         .split("\n")
@@ -207,4 +219,65 @@ export function applyClassification(record, result) {
       refs.push(ref);
   Object.assign(record, result, { references: refs });
   return record;
+}
+
+function strictVersion(value) {
+  return (
+    String(value || "")
+      .trim()
+      .match(/^([A-Z]|\d{1,3}(?:\.\d{1,2})?)$/i)?.[1]
+      ?.toUpperCase() || ""
+  );
+}
+function versionFrom(text) {
+  const s = String(text || "").normalize("NFKC");
+  const patterns = [
+    /\(([A-Z]|\d{1,3})\s*版\)/i,
+    /\b(?:Rev(?:ision)?\.?)(?:\s*:\s*|\s+)([A-Z]|\d{1,3}(?:\.\d{1,2})?)\b/i,
+    /(?:^|[^A-Za-z])([A-Z]|\d{1,3})\s*版(?=$|[^A-Za-z])/i,
+    /\bversion\s+([A-Z]|\d{1,3})\b/i,
+    /\(([A-Z]|\d{1,3})\)/i,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m) return strictVersion(m[1]);
+  }
+  return "";
+}
+export function contentIdentity(
+  subject,
+  attachment,
+  documentNo = "",
+  body = "",
+) {
+  const sources = [
+    ["主旨", subject],
+    ["附件欄", attachment],
+  ];
+  // Only explicit document titles, not a project name or filename, create a content topic.
+  const type =
+    "(?:系統切換計[畫劃]|測試程序|測試計[畫劃]|施工計[畫劃]|設計報告|介面控制文件|技術規範|操作維護手冊)";
+  for (const [where, raw] of sources) {
+    const source = normalizeText(raw).replace(/\s*([—–－-])\s*/g, "－");
+    const match = source.match(
+      new RegExp(
+        "(" + type + ")(?:[－:：]?([\\u3400-\\u9fffA-Za-z0-9]{1,16}站))?",
+      ),
+    );
+    if (!match) continue;
+    const title =
+      match[1].replace("計劃", "計畫") + (match[2] ? "－" + match[2] : "");
+    // For this submission, the subject/attachment is authoritative; body references are historical.
+    const version = versionFrom(subject) || versionFrom(attachment);
+    return {
+      title,
+      version,
+      evidence: `依${where}「${match[0]}」辨識；版次優先取自主旨／附件，不採說明中的前次版本`,
+    };
+  }
+  return {
+    title: "",
+    version: versionFrom(subject) || versionFrom(attachment),
+    evidence: "",
+  };
 }
