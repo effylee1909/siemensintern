@@ -1,6 +1,8 @@
 # 週會紀錄工作台
 
-> 新版獨立文件平台 Demo 位於 [docstorage-platform](docstorage-platform/README.md)，包含後端、資料庫與原檔儲存，獨立啟動，不隨週會 GitHub Pages 部署。原 `siemens_docstorage/` 為早期瀏覽器儲存原型。
+> 文件平台目前以 [純前端資料夾版](siemens_docstorage/README.md) 為主要入口，發布至 `siemens_docstorage/`；不需後端。後端 Demo 保留供未來使用。
+
+> 先前的獨立後端 Demo 位於 [docstorage-platform](docstorage-platform/README.md)，包含後端、資料庫與原檔儲存，獨立啟動，不隨週會 GitHub Pages 部署。早期瀏覽器儲存原型保留在 `siemens_docstorage/legacy/` 供匯出舊資料。
 
 本機處理的繁體中文網頁，以「上傳 PPT → 整理雙語議程與摘錄重點 → 會議中補充討論」為主要流程，Word 匯入為輔助。示範會議次數為第 219、220 次，下一次自動延續為第 221 次；討論內容只有虛構範例；實際附件與會議內容未納入原始碼。
 
