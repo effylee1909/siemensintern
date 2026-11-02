@@ -82,7 +82,7 @@ export function nextMeeting(previous, date, title) {
     presentations: [],
     entries: previous.entries
       .filter((e) => e.status !== "closed")
-      .map((e) => ({
+      .map(({ discussionTranslation, ...e }) => ({
         ...e,
         statusSuggestion: "",
         description: "",
@@ -207,6 +207,11 @@ export function validateState(s) {
     ids.add(m.id);
     const issues = new Set();
     for (const e of m.entries) {
+      if (e.discussionTranslation !== undefined) {
+        const t=e.discussionTranslation;
+        if (!t || !['local','manual'].includes(t.mode) || !/^[a-f0-9]{64}$/.test(t.sourceHash) || !/^[a-f0-9]{64}$/.test(t.targetHash))
+          throw Error('討論翻譯狀態格式不正確');
+      }
       if (e.statusSuggestion !== undefined && !["", "closed"].includes(e.statusSuggestion))
         throw Error("議題狀態提醒格式不正確");
       if (

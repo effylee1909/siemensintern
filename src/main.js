@@ -1,5 +1,6 @@
 import "./style.css";
 import { homeMarkup } from "./home.js";
+import { createLocalTranslator, translateDiscussion, translationTargets, mayApplyTranslation, discussionHash, translationBadge } from "./translation.js";
 import { backupArchive, restoreArchive, MAX_ARCHIVE } from "./archive.js";
 import {
   readWorkspace,
@@ -66,6 +67,7 @@ let state = blankWorkspace(),
   dirty = false,
   isDemo = false;
 let homeView = location.hash !== "#meeting";
+let translationRun = null, translationMessage = "";
 const homeOptions = { query: "", from: "", to: "", order: "newest" };
 let revision = 0,
   generation = 0,
@@ -189,7 +191,7 @@ function render() {
           `<button class="stat ${filter === s ? "selected" : ""}" data-filter="${s}"><span><i class="status-dot ${s}"></i>${label}</span><strong>${n.toString().padStart(2, "0")}</strong><small>${s === "closed" ? "下次會議不自動帶入" : s === "all" ? "追蹤本次所有討論" : "保留於下次會議"}</small></button>`,
       )
       .join("")}</div>
-<div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="rename-topics" class="secondary">整理所有議題名稱 / Topic names</button><button id="import" class="secondary">↑ 匯入 Word</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
+<div class="toolbar"><div class="tabs"><button data-filter="all" class="${filter === "all" ? "chosen" : ""}">所有議題</button><button data-filter="open" class="${filter === "open" ? "chosen" : ""}">進行中</button><button data-filter="closed" class="${filter === "closed" ? "chosen" : ""}">已關閉</button></div><div class="tools"><button id="rename-topics" class="secondary">整理所有議題名稱 / Topic names</button><button id="import" class="secondary">↑ 匯入 Word</button><button id="translate-meeting" class="secondary" title="只翻譯本次會議所有英文空白的中文討論">翻譯本次會議</button><button id="export" class="secondary">↓ 匯出 Word</button></div></div>
 <section class="meeting-attachments"><div class="list-heading"><h2>本次會議簡報 <span>${attachments.length} 份 · 僅保留在本機與一般備份</span></h2><div><button id="storage-info" class="text-button">儲存空間 / Storage</button> <button id="ppt" class="secondary">＋ 上傳會議 PPT</button></div></div><p class="subtitle">上傳 .pptx 後可預覽自動整理的中英文議題與摘錄重點。僅本機處理、不對外傳送。<br>Upload slides to prepare bilingual topics and extractive key points locally.</p><div class="attachment-list">${attachments.map((p) => `<div class="attachment ${p.id === presentationId ? "active" : ""}"><button data-presentation="${esc(p.id)}">▤ ${esc(p.name)} <small>${p.slides.length} 頁</small></button><button class="text-button" data-prepare-ppt="${esc(p.id)}">整理成會議紀錄 / Prepare minutes</button>${p.data || p.blobId ? `<button data-download-ppt="${esc(p.id)}" class="text-button">下載原檔</button>` : '<span class="text-only-note">文字與表格 · 原檔未保留 / Text only</span>'}<button data-remove-ppt="${esc(p.id)}" class="text-button danger">移除</button></div>`).join("") || '<div class="attachment-empty">尚未上傳本次簡報。可先新增議題開始記錄。</div>'}</div></section><div class="workbench"><section class="issue-list"><div class="list-heading"><h2>議題列表 <span>${list.length}</span></h2><button id="add" class="primary">＋ 新增議題</button></div><input id="search" class="search" placeholder="搜尋議題或負責人…" value="${esc(query)}" aria-label="搜尋議題"><div class="issue-scroll" role="region" aria-label="議題列表 / Topic list" tabindex="0" data-scroll-key="${esc(issueScrollKey)}">${
       list.length
         ? list
@@ -211,7 +213,7 @@ function render() {
             )
             .join(
               "",
-            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key point", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><small>${esc(m.date)}</small></div><label class="discussion-label">中文</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><label class="discussion-label">English</label><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="Record the discussion and decisions in English…">${esc(e.descriptionEn || "")}</textarea></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
+            )}</select></label></div>${bilingualInputs(e, "owner", "負責人 / PiC")}<section class="agenda-summary"><div class="panel-heading"><span>簡報內容與重點 / Description & key points</span><small>本機擷取 · Extractive</small></div>${bilingualInputs(e, "summary", "會前重點 / Agenda key point", true)}${e.sourceSlides?.length ? `<details class="source-details"><summary>原文與來源 / Source: ${esc(e.sourceFile || "")} · ${e.sourceSlides.join(", ")}</summary><div class="bilingual-grid"><pre>${esc(e.sourceText || "未提供中文 / Chinese not provided")}</pre><pre>${esc(e.sourceTextEn || "未提供英文 / English not provided")}</pre></div></details>` : '<p class="subtitle">尚未整理本次簡報 / No slides prepared for this meeting</p>'}</section><div class="comparison"><div class="previous"><div class="panel-heading"><span>前次討論 / Previous discussion</span><small>${previous ? esc(previous.meeting.date) : "無歷史紀錄"}</small></div>${previous ? `<div class="previous-text">${esc(previous.entry.description || "未填寫中文 / Chinese not recorded")}<hr>${esc(previous.entry.descriptionEn || "未填寫英文 / English not recorded")}</div><div class="previous-note">備註 / Note：${esc(previous.entry.note || "—")}<br>${esc(previous.entry.noteEn || "—")}<br>PiC：${esc(previous.entry.owner || "—")} / ${esc(previous.entry.ownerEn || "—")} · ${statuses[previous.entry.status]}</div>` : '<p class="empty-history">本次新增的議題。<br>從這裡開始累積討論歷程。</p>'}</div><div class="this-week"><div class="panel-heading"><span>本次討論 / Current discussion</span><div class="discussion-actions"><small>${esc(m.date)}</small><button id="translate-topic" class="secondary" title="翻譯後直接填入英文欄位；已有英文將由這次翻譯取代">${e.descriptionEn?.trim() ? "重新翻譯此段" : "翻譯此段"}</button></div></div><label class="discussion-label">中文</label><textarea data-field="description" aria-label="本次討論" placeholder="只需補充本次討論、決議與下一步…">${esc(e.description)}</textarea><div class="discussion-language-heading"><label class="discussion-label">English</label><small id="discussion-translation-status" aria-live="polite"></small></div><textarea data-field="descriptionEn" aria-label="Current discussion (English)" placeholder="翻譯完成後直接填入，可自行檢查與修改 / Translation appears here">${esc(e.descriptionEn || "")}</textarea><p class="discussion-translation-help">翻譯後直接填入英文，可自行修改。全場翻譯只處理英文空白的討論；重譯已有英文請按「重新翻譯此段」。首次使用可能需下載本機模型。</p></div></div>${bilingualInputs(e, "note", "備註與後續待辦 / Notes and actions", true)}<div class="editor-footer"><span>✓ 編輯後自動儲存於此瀏覽器，請定期下載備份</span><button id="history" class="text-button">檢視完整歷程 ↗</button><button id="delete" class="text-button danger">移除本次議題</button></div>`
         : '<div class="empty editor-empty"><strong>從簡報開始準備會議紀錄<br>Prepare minutes from your slides</strong><br>上傳 PPT，自動整理議題與重點，再補充會議討論。<br>也可以按「新增議題」手動加入。</div>'
     }</section></div><footer>MEETING DESK <span>議題跨週追蹤 · 週會紀錄整理</span><span>對方紀錄比對規劃中</span><button id="privacy" class="text-button page-privacy">資料保護與使用說明 ↗</button></footer></section></main><div id="toast" role="status"></div><dialog id="dialog"></dialog><input id="file" type="file" hidden>`;
   document.body.classList.toggle("overview-mode", homeView);
@@ -222,8 +224,11 @@ function render() {
   }
   const topBadge = $(".editor-top");
   if (e?.statusSuggestion === "closed" && e.status !== "closed") topBadge.insertAdjacentHTML("afterend", '<section class="status-review" role="status"><strong>簡報標示已關閉，請確認 / Slides indicate Closed</strong><p>目前狀態維持原樣，確認後才會更改。</p><button id="accept-close" class="secondary">確認改為已關閉</button><button id="keep-status" class="text-button">維持目前狀態</button></section>');
+  $("main header").insertAdjacentHTML("afterend", '<section id="translation-progress" class="translation-progress" hidden><span id="translation-progress-text" role="status"></span><button id="cancel-translation" class="text-button">取消翻譯</button></section>');
   history.replaceState(null, "", homeView ? "#home" : "#meeting");
   bind();
+  refreshTranslationControls();
+  void refreshTranslationBadge();
   const issuePane = $(".issue-scroll");
   if (issuePane)
     issuePane.scrollTop = issueScrollPositions.get(issueScrollKey) || 0;
@@ -296,6 +301,15 @@ function openMeeting(id) {
   change(); render();
 }
 function bind() {
+  $("#translate-meeting").onclick = () => runDiscussionTranslation();
+  $("#translate-topic")?.addEventListener('click', () => runDiscussionTranslation(entryId));
+  $("#cancel-translation").onclick = () => {
+    if (!translationRun) return;
+    translationRun.cancelled = true; translationRun.controller.abort();
+    try { translationRun.engine?.destroy(); } catch {}
+    translationMessage = '正在取消；已完成的翻譯保留，未完成的內容不變。';
+    refreshTranslationControls();
+  };
   $("#go-home").onclick = () => { homeView = true; render(); };
   $("#go-meeting").onclick = () => openMeeting(selected);
   $(".brand").onclick = ev => { ev.preventDefault(); homeView = true; render(); };
@@ -499,6 +513,10 @@ function bind() {
             el.value || "English title pending";
       }
       change();
+      if (el.dataset.field === "descriptionEn") void markManualTranslation();
+      if (["description", "descriptionEn"].includes(el.dataset.field)) {
+        refreshTranslationControls(); void refreshTranslationBadge();
+      }
     };
     if (el.tagName === "SELECT") el.onchange = () => render();
   });
@@ -657,7 +675,7 @@ function bind() {
   $("#privacy").onclick = () =>
     modal(
       "資料保護與使用說明",
-      `<div class="privacy-copy"><h3>自動儲存與一般備份</h3><p>會議紀錄與附件會以未加密方式保存在此瀏覽器的 IndexedDB。同一網站、同一瀏覽器再次開啟會自動載入；換電腦或瀏覽器需要匯入完整 ZIP 或 JSON 備份。清除瀏覽器資料、無痕模式或儲存空間不足可能造成資料遺失，請定期下載備份。</p><h3>本機資料保護</h3><p>不使用外部 AI、追蹤或檔案上傳服務，資料不會寫入 GitHub。共用同一瀏覽器的人、具有權限的擴充功能或受入侵裝置可能讀取紀錄。網站目前沒有登入、雲端同步或存取權限。</p><h3>清除與分享</h3><p>清除工作區會以空白資料取代本機紀錄；不會刪除已下載的備份或原始檔案。JSON／ZIP、Word、原始 PPT 均未加密，請使用公司核准的儲存與分享方式。舊加密備份可用原密碼匯入；不再產生新的加密備份。</p><h3>PPT 整理</h3><p>只做本機文字、表格解析與摘錄，不自動翻譯或執行巨集，圖片與圖表需核對原檔。正式多人使用需要另設登入、權限與公司核准的資料儲存。</p></div>`,
+      `<div class="privacy-copy"><h3>自動儲存與一般備份</h3><p>會議紀錄與附件會以未加密方式保存在此瀏覽器的 IndexedDB。同一網站、同一瀏覽器再次開啟會自動載入；換電腦或瀏覽器需要匯入完整 ZIP 或 JSON 備份。清除瀏覽器資料、無痕模式或儲存空間不足可能造成資料遺失，請定期下載備份。</p><h3>本機資料保護</h3><p>不使用外部 AI、追蹤或檔案上傳服務，資料不會寫入 GitHub。共用同一瀏覽器的人、具有權限的擴充功能或受入侵裝置可能讀取紀錄。網站目前沒有登入、雲端同步或存取權限。</p><h3>清除與分享</h3><p>清除工作區會以空白資料取代本機紀錄；不會刪除已下載的備份或原始檔案。JSON／ZIP、Word、原始 PPT 均未加密，請使用公司核准的儲存與分享方式。舊加密備份可用原密碼匯入；不再產生新的加密備份。</p><h3>PPT 整理</h3><p>PPT 匯入只做本機文字、表格解析與摘錄，不翻譯簡報或執行巨集，圖片與圖表需核對原檔。新增的本次討論翻譯須由你按鈕啟動，使用瀏覽器 Translator API 在本機執行；首次使用可能下載語言模型，會議文字不送外部翻譯服務。翻譯直接填入英文，請自行檢查，未提供雲端翻譯備援。正式多人使用需要另設登入、權限與公司核准的資料儲存。</p></div>`,
     );
   $("#history")?.addEventListener("click", () => {
     const history = state.meetings
@@ -1069,6 +1087,88 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";
   }
 });
+function refreshTranslationControls() {
+  const entry = current()?.entries.find(e => e.issueId === entryId);
+  const one = $("#translate-topic");
+  if (one) {
+    one.disabled = !!translationRun;
+    one.textContent = entry?.descriptionEn?.trim() ? "重新翻譯此段" : "翻譯此段";
+  }
+  if ($("#translate-meeting")) $("#translate-meeting").disabled = !!translationRun;
+  if ($("#translation-progress")) {
+    $("#translation-progress").hidden = !translationRun && !translationMessage;
+    $("#translation-progress-text").textContent = translationMessage;
+    $("#cancel-translation").hidden = !translationRun || translationRun.cancelled;
+  }
+}
+async function refreshTranslationBadge() {
+  const meetingId = selected, id = entryId;
+  const entry = current()?.entries.find(e => e.issueId === id);
+  if (!entry || !$("#discussion-translation-status")) return;
+  const source = entry.description, target = entry.descriptionEn, meta = entry.discussionTranslation;
+  try {
+    const badge = await translationBadge(entry);
+    const active = current()?.entries.find(e => e.issueId === id);
+    if (selected !== meetingId || entryId !== id || !active || active.description !== source || active.descriptionEn !== target || active.discussionTranslation !== meta) return;
+    const el = $("#discussion-translation-status");
+    if (el) { el.textContent = badge.text; el.classList.toggle('stale', badge.stale); }
+  } catch { /* Hashing is only a status indicator; never alter existing content. */ }
+}
+async function markManualTranslation() {
+  const meetingId = selected, id = entryId, originalState = state;
+  const entry = current()?.entries.find(e => e.issueId === id);
+  if (!entry) return;
+  const snapshot = {issueId:id,source:entry.description,target:entry.descriptionEn || ''};
+  try {
+    const [sourceHash,targetHash] = await Promise.all([discussionHash(snapshot.source),discussionHash(snapshot.target)]);
+    const active = mayApplyTranslation(state, originalState, meetingId, snapshot);
+    if (!active) return;
+    active.discussionTranslation = {sourceHash,targetHash,mode:'manual'};
+    change(); void refreshTranslationBadge();
+  } catch { /* Manual editing and saving remain available without hashing. */ }
+}
+async function runDiscussionTranslation(issueId) {
+  if (translationRun) return toast('正在翻譯，請稍候或取消目前作業。');
+  const meeting = current();
+  const targets = translationTargets(meeting, issueId);
+  if (!targets.length) return toast(issueId ? '本段沒有可翻譯的中文討論。' : '沒有英文空白的中文討論；已有英文可用「重新翻譯此段」。');
+  const job = {meetingId:meeting.id,label:meeting.title || "未命名會議",originalState:state,controller:new AbortController(),cancelled:false,engine:null};
+  translationRun = job;
+  translationMessage = `準備翻譯「${job.label}」…`;
+  refreshTranslationControls();
+  let completed = 0, skipped = 0, failed = 0, lastError = '';
+  try {
+    job.engine = await createLocalTranslator({signal:job.controller.signal,onProgress:message=>{ if (!job.cancelled) {translationMessage=`「${job.label}」${message}`;refreshTranslationControls();} }});
+    for (let i=0; i<targets.length && !job.cancelled; i++) {
+      const snapshot=targets[i];
+      if (!mayApplyTranslation(state,job.originalState,job.meetingId,snapshot)) { skipped++; continue; }
+      translationMessage=`正在翻譯「${job.label}」${i+1} / ${targets.length} 個議題（本機處理）`;refreshTranslationControls();
+      try {
+        const english = await translateDiscussion(job.engine,snapshot.source,job.controller.signal);
+        const [sourceHash,targetHash] = await Promise.all([discussionHash(snapshot.source),discussionHash(english)]);
+        if (job.cancelled) break;
+        const entry=mayApplyTranslation(state,job.originalState,job.meetingId,snapshot);
+        if (!entry) {skipped++;continue;}
+        entry.descriptionEn=english;
+        entry.discussionTranslation={sourceHash,targetHash,mode:'local'};
+        completed++;change();
+        if (selected===job.meetingId && entryId===snapshot.issueId) {
+          const input=$('[data-field="descriptionEn"]');if(input)input.value=english;
+          void refreshTranslationBadge();
+        }
+      } catch(e) {
+        if (job.cancelled || e.name==='AbortError') break;
+        failed++;lastError=e.message || '本機翻譯失敗';
+      }
+    }
+    translationMessage=`${job.cancelled?'已取消':'翻譯完成'}：已填入 ${completed} 段${skipped?`；${skipped} 段已變更或刪除，未覆寫`:''}${failed?`；${failed} 段失敗，原文保留。${lastError}`:''}。請直接檢查英文欄位。`;
+  } catch(e) {
+    translationMessage=job.cancelled?'已取消翻譯，原有內容保留。':(e.message || '本機翻譯暫不可用，請確認瀏覽器支援及語言模型下載權限；原有內容未變更。');
+  } finally {
+    try {job.engine?.destroy();} catch {}
+    translationRun=null;refreshTranslationControls();void refreshTranslationBadge();
+  }
+}
 async function initialize() {
   try {
     const saved = await readWorkspace();

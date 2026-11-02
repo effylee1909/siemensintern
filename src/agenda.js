@@ -290,6 +290,7 @@ export function applyPreparedAgenda(meeting, drafts, selections) {
             status: old.status,
             owner: old.owner || entry.owner,
             ownerEn: old.ownerEn || entry.ownerEn,
+            ...(old.discussionTranslation ? {discussionTranslation:old.discussionTranslation} : {}),
           }
         : {}),
     });
