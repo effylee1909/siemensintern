@@ -55,11 +55,11 @@ npm run test:browser
 
 ## GitHub Pages 發布
 
-保留儲存庫 `effylee1909/siemensintern`，網站路徑命名為 `siemens_weekilymeeting`（依指定拼字）。預定網址為 `https://effylee1909.github.io/siemensintern/siemens_weekilymeeting/`。
+保留儲存庫 `effylee1909/siemensintern`，正式網站路徑為 `siemens_weeklymeeting`。網址為 `https://effylee1909.github.io/siemensintern/siemens_weeklymeeting/`。舊的 `siemens_weekilymeeting` 路徑保留轉址，包含查詢字串與頁面 hash；兩個路徑在相同 origin，沿用同一份 IndexedDB，不移動或重建工作區。
 
 在儲存庫 Settings → Pages → Build and deployment，將 Source 設為 GitHub Actions。`.github/workflows/pages.yml` 在推送 main 時測試、建置並發布網站。設定完成後可在 Actions 手動執行 Deploy weekly meeting website，或推送新提交觸發。帳戶方案及儲存庫可見性可能限制 Pages 是否可用，私人原始碼儲存庫不代表 Pages 網站也私有。
 
-`npm run build:pages` 使用專屬 base path，輸出至 `dist/siemens_weekilymeeting/`；整個 `dist/` 作為 Pages artifact，因此需保留完整子路徑。發布的檔案只有程式與虛構範例，不包含本機匯入資料、上傳附件或一般備份。GitHub Pages 是網頁託管，沒有公司登入與權限驗證；若公司政策不允許公開平台上的工具處理內部紀錄，請使用公司核准的內網部署。
+`npm run build:pages` 使用專屬 base path，輸出至 `dist/siemens_weeklymeeting/`；整個 `dist/` 作為 Pages artifact，因此需保留完整子路徑。發布的檔案只有程式與虛構範例，不包含本機匯入資料、上傳附件或一般備份。GitHub Pages 是網頁託管，沒有公司登入與權限驗證；若公司政策不允許公開平台上的工具處理內部紀錄，請使用公司核准的內網部署。
 
 ## PPT 自動整理與雙語內容
 
